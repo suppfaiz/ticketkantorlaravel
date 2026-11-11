@@ -1,0 +1,25 @@
+{
+  "node_modules/trumbowyg/dist/trumbowyg.js": {
+    "file": "assets/trumbowyg-Dukr8UWu.js",
+    "name": "trumbowyg",
+    "src": "node_modules/trumbowyg/dist/trumbowyg.js",
+    "isDynamicEntry": true
+  },
+  "resources/css/app.css": {
+    "file": "assets/app-emDSXVkC.css",
+    "src": "resources/css/app.css",
+    "isEntry": true
+  },
+  "resources/js/app.js": {
+    "file": "assets/app-4wJb9-2T.js",
+    "name": "app",
+    "src": "resources/js/app.js",
+    "isEntry": true,
+    "dynamicImports": [
+      "node_modules/trumbowyg/dist/trumbowyg.js"
+    ],
+    "css": [
+      "assets/app-QhWC16Wr.css"
+    ]
+  }
+}

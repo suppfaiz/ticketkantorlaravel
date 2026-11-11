@@ -1,0 +1,11 @@
+/vendor/
+/node_modules/
+/public/hot
+/public/storage
+.env
+.env.backup
+.env.production
+.phpunit.result.cache
+*.log
+.DS_Store
+Thumbs.db
