@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\ChatMessage;
+use App\Models\Ticket;
+use App\Models\TicketAttachment;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Validation\Rule;
 
 class ChatController extends Controller
 {
@@ -17,7 +20,7 @@ class ChatController extends Controller
         $contactId = $request->filled('contact_id') ? (int) $request->input('contact_id') : null;
 
         if ($ticketId) {
-            $ticket = \App\Models\Ticket::findOrFail($ticketId);
+            $ticket = Ticket::findOrFail($ticketId);
             $this->authorize('view', $ticket);
 
             ChatMessage::where('ticket_id', $ticketId)
@@ -99,11 +102,26 @@ class ChatController extends Controller
     {
         $validated = $request->validate([
             'message' => ['required', 'string', 'max:2000'],
-            'receiver_id' => ['nullable', 'integer', 'exists:users,id'],
-            'ticket_id' => ['nullable', 'integer', 'exists:tickets,id'],
+            'receiver_id' => [
+                'nullable',
+                'integer',
+                'exists:users,id',
+                Rule::prohibitedIf(fn () => $request->filled('ticket_id')),
+            ],
+            'ticket_id' => [
+                'nullable',
+                'integer',
+                'exists:tickets,id',
+                Rule::prohibitedIf(fn () => $request->filled('receiver_id')),
+            ],
         ]);
 
         $user = $request->user();
+
+        if (! empty($validated['ticket_id'])) {
+            $ticket = Ticket::findOrFail($validated['ticket_id']);
+            $this->authorize('view', $ticket);
+        }
 
         $chatMessage = ChatMessage::create([
             'sender_id' => $user->id,
@@ -120,7 +138,7 @@ class ChatController extends Controller
         ], 201);
     }
 
-    public function storeDiscussion(Request $request, \App\Models\Ticket $ticket): JsonResponse|\Illuminate\Http\RedirectResponse
+    public function storeDiscussion(Request $request, Ticket $ticket): JsonResponse|RedirectResponse
     {
         $this->authorize('view', $ticket);
 
@@ -133,8 +151,8 @@ class ChatController extends Controller
 
         if ($request->hasFile('attachment')) {
             $file = $request->file('attachment');
-            $storedPath = $file->store('tickets/' . $ticket->id, 'local');
-            \App\Models\TicketAttachment::create([
+            $storedPath = $file->store('tickets/'.$ticket->id, 'local');
+            TicketAttachment::create([
                 'ticket_id' => $ticket->id,
                 'uploader_id' => $request->user()->id,
                 'file_name' => $file->getClientOriginalName(),
@@ -143,7 +161,7 @@ class ChatController extends Controller
                 'mime_type' => $file->getClientMimeType(),
                 'created_at' => now(),
             ]);
-            $messageText .= "\n[Lampiran Diskusi: " . $file->getClientOriginalName() . ']';
+            $messageText .= "\n[Lampiran Diskusi: ".$file->getClientOriginalName().']';
         }
 
         $chatMessage = ChatMessage::create([
@@ -163,7 +181,7 @@ class ChatController extends Controller
         }
 
         return redirect()
-            ->to(route('tickets.show', $ticket) . '#discussion')
+            ->to(route('tickets.show', $ticket).'#discussion')
             ->with('active_tab', 'discussion')
             ->with('success', 'Komentar diskusi berhasil dikirim.');
     }

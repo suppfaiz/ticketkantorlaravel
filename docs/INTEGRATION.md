@@ -49,17 +49,18 @@ php artisan config:cache
 
 Kode saat ini memiliki:
 
-- `SsoServiceInterface`, `MockSsoService`, dan `EnterpriseSsoService`.
-- `LoaServiceInterface`, `MockLoaService`, dan `EnterpriseLoaService`.
+- `SsoServiceInterface`, `LocalSsoService`, `MockSsoService`, dan `EnterpriseSsoService`.
+- `LoaServiceInterface`, `LocalLoaService`, `MockLoaService`, dan `EnterpriseLoaService`.
 - Webhook `POST /api/v1/webhooks/loa-decision`.
+- Pemilihan driver eksplisit dan larangan mock pada production.
+- Verifikasi JWT RS256 beserta issuer, audience, expiry, dan not-before.
 
-Kekurangan yang masih harus direfactor:
+Pekerjaan yang menunggu kesiapan aplikasi eksternal:
 
-- Belum ada driver SSO lokal yang eksplisit.
-- Belum ada `LocalLoaService`.
-- Nilai driver yang tidak dikenali masih jatuh ke mock.
-- Mock belum dilarang pada production.
-- JWT SSO belum diverifikasi secara kriptografis secara lengkap.
+- Finalisasi kontrak endpoint dan payload.
+- Penetapan issuer, audience, serta mekanisme rotasi public key/JWKS.
+- Penetapan source of truth role, departemen, dan supervisor.
+- Sandbox, UAT integrasi, pilot user, dan prosedur rollback.
 
 ## 3. Kontrak SSO minimum
 

@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Models\User;
+use App\Services\Contracts\SsoServiceInterface;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -42,37 +44,45 @@ class LoginRequest extends FormRequest
     {
         $this->ensureIsNotRateLimited();
 
-        $ssoService = app(\App\Services\Contracts\SsoServiceInterface::class);
+        $ssoService = app(SsoServiceInterface::class);
         $ssoResult = $ssoService->authenticate($this->input('email'), $this->input('password'));
 
         if ($ssoResult['success']) {
             $ssoUserData = $ssoResult['user'] ?? [];
             $email = $ssoUserData['email'] ?? $this->input('email');
+            $ssoId = $ssoUserData['sso_id'] ?? null;
+            $driver = (string) config('services.sso.driver');
 
-            $user = \App\Models\User::firstOrCreate(
-                ['email' => $email],
-                [
+            if ($driver === 'local') {
+                $user = User::where('email', $email)->first();
+            } else {
+                $user = $ssoId
+                    ? User::where('sso_id', $ssoId)->orWhere('email', $email)->first()
+                    : User::where('email', $email)->first();
+
+                $user ??= User::create([
+                    'email' => $email,
                     'name' => $ssoUserData['name'] ?? 'SSO User',
-                    'sso_id' => $ssoUserData['sso_id'] ?? null,
+                    'sso_id' => $ssoId,
                     'role' => $ssoUserData['role'] ?? 'requester',
                     'department' => $ssoUserData['department'] ?? 'Umum',
                     'password' => null,
-                ]
-            );
-
-            if (isset($ssoUserData['sso_id']) && ! $user->sso_id) {
-                $user->update([
-                    'sso_id' => $ssoUserData['sso_id'],
-                    'department' => $ssoUserData['department'] ?? $user->department,
                 ]);
             }
 
-            // Auto-assign supervisor for requesters if not yet assigned
-            if ($user->role === 'requester' && ! $user->supervisor_id) {
-                $defaultSupervisor = \App\Models\User::where('role', 'supervisor')->first();
-                if ($defaultSupervisor) {
-                    $user->update(['supervisor_id' => $defaultSupervisor->id]);
-                }
+            if (! $user) {
+                RateLimiter::hit($this->throttleKey());
+
+                throw ValidationException::withMessages([
+                    'email' => 'Akun lokal tidak ditemukan.',
+                ]);
+            }
+
+            if ($driver !== 'local' && $ssoId && ! $user->sso_id) {
+                $user->update([
+                    'sso_id' => $ssoId,
+                    'department' => $ssoUserData['department'] ?? $user->department,
+                ]);
             }
 
             if ($user->is_active === false) {
@@ -85,19 +95,6 @@ class LoginRequest extends FormRequest
             session(['sso_token' => $ssoResult['token'] ?? null]);
             RateLimiter::clear($this->throttleKey());
 
-            return;
-        }
-
-        // Fallback for factory-seeded local users in existing tests
-        $existingUser = \App\Models\User::where('email', $this->input('email'))->first();
-        if ($existingUser && $existingUser->is_active === false) {
-            throw ValidationException::withMessages([
-                'email' => 'Akun Anda sedang dinonaktifkan oleh Administrator Sistem.',
-            ]);
-        }
-
-        if (Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
-            RateLimiter::clear($this->throttleKey());
             return;
         }
 

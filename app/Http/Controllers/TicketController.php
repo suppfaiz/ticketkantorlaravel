@@ -2,13 +2,24 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\ItHeadDecisionRequest;
 use App\Http\Requests\StoreTicketRequest;
 use App\Http\Requests\UpdateTicketRequest;
+use App\Models\ExternalLoaTransaction;
 use App\Models\Ticket;
+use App\Models\TicketActivityLog;
+use App\Models\TicketCategory;
+use App\Models\User;
+use App\Services\AuditTrailService;
+use App\Services\Contracts\LoaServiceInterface;
 use App\Services\TicketService;
+use App\Services\TicketStateMachine;
+use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TicketController extends Controller
 {
@@ -33,7 +44,7 @@ class TicketController extends Controller
         } elseif ($user->isSupervisor()) {
             $query->where(function ($q) use ($user) {
                 $q->where('supervisor_id', $user->id)
-                  ->orWhere('requester_id', $user->id);
+                    ->orWhere('requester_id', $user->id);
             });
         } elseif ($user->isItDeveloper()) {
             $query->where(function ($q) use ($user) {
@@ -125,7 +136,7 @@ class TicketController extends Controller
             $search = $request->query('search');
             $query->where(function ($q) use ($search) {
                 $q->where('ticket_number', 'LIKE', "%{$search}%")
-                  ->orWhere('title', 'LIKE', "%{$search}%");
+                    ->orWhere('title', 'LIKE', "%{$search}%");
             });
         }
 
@@ -143,7 +154,7 @@ class TicketController extends Controller
             : 10;
 
         $tickets = $query->paginate($perPage)->withQueryString();
-        $categories = \App\Models\TicketCategory::activeNames();
+        $categories = TicketCategory::activeNames();
 
         return view('tickets.index', compact('tickets', 'perPage', 'categories'));
     }
@@ -154,7 +165,7 @@ class TicketController extends Controller
 
         $monthParam = (string) $request->query('month', now()->format('Y-m'));
         try {
-            $currentMonth = \Carbon\Carbon::createFromFormat('Y-m-d', $monthParam . '-01')->startOfMonth();
+            $currentMonth = Carbon::createFromFormat('Y-m-d', $monthParam.'-01')->startOfMonth();
         } catch (\Throwable $e) {
             $currentMonth = now()->startOfMonth();
         }
@@ -171,7 +182,7 @@ class TicketController extends Controller
         } elseif ($user->isSupervisor()) {
             $baseQuery->where(function ($q) use ($user) {
                 $q->where('supervisor_id', $user->id)
-                  ->orWhere('requester_id', $user->id);
+                    ->orWhere('requester_id', $user->id);
             });
         } elseif ($user->isItDeveloper()) {
             // Teknisi hanya melihat timeline tiket yang dia kerjakan sendiri
@@ -192,24 +203,24 @@ class TicketController extends Controller
         // Fetch tickets relevant to this month (by target, meeting, creation, completion, or still active)
         $tickets = $baseQuery->where(function ($q) use ($startOfMonth, $endOfMonth) {
             $q->whereBetween('target_completion_at', [$startOfMonth, $endOfMonth])
-              ->orWhereBetween('meeting_scheduled_at', [$startOfMonth, $endOfMonth])
-              ->orWhereBetween('created_at', [$startOfMonth, $endOfMonth])
-              ->orWhereBetween('work_started_at', [$startOfMonth, $endOfMonth])
-              ->orWhereBetween('work_completed_at', [$startOfMonth, $endOfMonth])
-              ->orWhereHas('meetingMinutes', function ($mq) use ($startOfMonth, $endOfMonth) {
-                  $mq->whereBetween('meeting_date', [$startOfMonth, $endOfMonth]);
-              })
-              ->orWhere(function ($aq) use ($endOfMonth) {
-                  $aq->where('created_at', '<=', $endOfMonth)
-                     ->whereNotIn('status', [
-                         Ticket::STATUS_COMPLETED,
-                         Ticket::STATUS_CANCELLED,
-                         Ticket::STATUS_REJECTED_SUPERVISOR,
-                         Ticket::STATUS_REJECTED_IT_HEAD,
-                         Ticket::STATUS_REJECTED_KADIV_IT,
-                         Ticket::STATUS_REJECTED_DIREKSI,
-                     ]);
-              });
+                ->orWhereBetween('meeting_scheduled_at', [$startOfMonth, $endOfMonth])
+                ->orWhereBetween('created_at', [$startOfMonth, $endOfMonth])
+                ->orWhereBetween('work_started_at', [$startOfMonth, $endOfMonth])
+                ->orWhereBetween('work_completed_at', [$startOfMonth, $endOfMonth])
+                ->orWhereHas('meetingMinutes', function ($mq) use ($startOfMonth, $endOfMonth) {
+                    $mq->whereBetween('meeting_date', [$startOfMonth, $endOfMonth]);
+                })
+                ->orWhere(function ($aq) use ($endOfMonth) {
+                    $aq->where('created_at', '<=', $endOfMonth)
+                        ->whereNotIn('status', [
+                            Ticket::STATUS_COMPLETED,
+                            Ticket::STATUS_CANCELLED,
+                            Ticket::STATUS_REJECTED_SUPERVISOR,
+                            Ticket::STATUS_REJECTED_IT_HEAD,
+                            Ticket::STATUS_REJECTED_KADIV_IT,
+                            Ticket::STATUS_REJECTED_DIREKSI,
+                        ]);
+                });
         })->orderBy('created_at', 'asc')->get();
 
         $eventTypeFilter = (string) $request->query('event_type', '');
@@ -250,7 +261,7 @@ class TicketController extends Controller
                 'state' => $overallState,
                 'span_start' => $spanStart,
                 'span_end' => $spanEnd,
-                'meeting_date' => $rawMeetingDate ? \Carbon\Carbon::parse($rawMeetingDate) : null,
+                'meeting_date' => $rawMeetingDate ? Carbon::parse($rawMeetingDate) : null,
             ]);
 
             // Populate Monthly Calendar Grid Events
@@ -268,14 +279,14 @@ class TicketController extends Controller
 
             // 2. Jadwal Rapat Major
             if ($rawMeetingDate) {
-                $mCarbon = \Carbon\Carbon::parse($rawMeetingDate);
+                $mCarbon = Carbon::parse($rawMeetingDate);
                 if ($mCarbon->between($startOfMonth, $endOfMonth)) {
                     $dKey = $mCarbon->format('Y-m-d');
                     $eventsByDate[$dKey][] = [
                         'type' => 'meeting',
                         'date' => $mCarbon,
                         'state' => 'meeting',
-                        'badge' => 'Rapat ' . $mCarbon->format('H:i'),
+                        'badge' => 'Rapat '.$mCarbon->format('H:i'),
                         'ticket' => $t,
                     ];
                 }
@@ -298,11 +309,11 @@ class TicketController extends Controller
             }
         }
 
-        $itDevelopers = \App\Models\User::where('role', \App\Models\User::ROLE_IT_DEVELOPER)
+        $itDevelopers = User::where('role', User::ROLE_IT_DEVELOPER)
             ->where('is_active', true)
             ->orderBy('name')
             ->get();
-        $categories = \App\Models\TicketCategory::activeNames();
+        $categories = TicketCategory::activeNames();
 
         return view('tickets.calendar', compact(
             'currentMonth',
@@ -313,12 +324,12 @@ class TicketController extends Controller
         ));
     }
 
-    public function exportCsv(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function exportCsv(Request $request): StreamedResponse
     {
         $this->authorize('viewAny', Ticket::class);
 
         $tickets = $this->buildFilteredTicketQuery($request)->limit(5000)->get();
-        $filename = 'Laporan_Tiket_Helpdesk_IT_' . now()->format('Ymd_His') . '.csv';
+        $filename = 'Laporan_Tiket_Helpdesk_IT_'.now()->format('Ymd_His').'.csv';
 
         return response()->streamDownload(function () use ($tickets) {
             $out = fopen('php://output', 'w');
@@ -398,31 +409,14 @@ class TicketController extends Controller
         $user = auth()->user();
         $supervisor = $user->supervisor;
 
-        if (! $supervisor && $user->isRequester()) {
-            $defaultSupervisor = \App\Models\User::where('role', 'supervisor')->first();
-            if ($defaultSupervisor) {
-                $user->update(['supervisor_id' => $defaultSupervisor->id]);
-                $user->load('supervisor.department');
-                $supervisor = $user->supervisor;
-            }
-        }
-
-        $availableSupervisors = \App\Models\User::where('role', 'supervisor')->get();
-        $categories = \App\Models\TicketCategory::activeNames();
+        $availableSupervisors = User::where('role', 'supervisor')->get();
+        $categories = TicketCategory::activeNames();
 
         return view('tickets.create', compact('supervisor', 'availableSupervisors', 'categories'));
     }
 
     public function store(StoreTicketRequest $request): RedirectResponse
     {
-        $user = $request->user();
-        if (! $user->supervisor_id && $user->isRequester()) {
-            $defaultSupervisor = \App\Models\User::where('role', 'supervisor')->first();
-            if ($defaultSupervisor) {
-                $user->update(['supervisor_id' => $defaultSupervisor->id]);
-            }
-        }
-
         $ticket = $this->ticketService->createTicket(
             requester: $request->user(),
             data: $request->validated(),
@@ -431,9 +425,9 @@ class TicketController extends Controller
 
         // Dispatch LOA Atasan via LOA Service
         if ($ticket->status === Ticket::STATUS_WAITING_SUPERVISOR && $ticket->supervisor_id) {
-            app(\App\Services\Contracts\LoaServiceInterface::class)->dispatch(
+            app(LoaServiceInterface::class)->dispatch(
                 $ticket,
-                \App\Models\ExternalLoaTransaction::LEVEL_SUPERVISOR,
+                ExternalLoaTransaction::LEVEL_SUPERVISOR,
                 ['supervisor_id' => $ticket->supervisor_id]
             );
         }
@@ -459,16 +453,16 @@ class TicketController extends Controller
             'discussions.sender',
         ]);
 
-        $itDevelopers = \App\Models\User::where('role', \App\Models\User::ROLE_IT_DEVELOPER)
+        $itDevelopers = User::where('role', User::ROLE_IT_DEVELOPER)
             ->where('is_active', true)
             ->orderBy('name')
             ->get();
 
-        $supervisors = \App\Models\User::whereIn('role', [
-            \App\Models\User::ROLE_SUPERVISOR,
-            \App\Models\User::ROLE_IT_HEAD,
-            \App\Models\User::ROLE_KADIV_IT,
-            \App\Models\User::ROLE_DIREKSI,
+        $supervisors = User::whereIn('role', [
+            User::ROLE_SUPERVISOR,
+            User::ROLE_IT_HEAD,
+            User::ROLE_KADIV_IT,
+            User::ROLE_DIREKSI,
         ])
             ->where('is_active', true)
             ->orderBy('name')
@@ -480,7 +474,7 @@ class TicketController extends Controller
     public function submitDraft(
         Request $request,
         Ticket $ticket,
-        \App\Services\TicketStateMachine $stateMachine
+        TicketStateMachine $stateMachine
     ): RedirectResponse {
         $this->authorize('update', $ticket);
 
@@ -506,9 +500,9 @@ class TicketController extends Controller
         );
 
         if ($ticket->status === Ticket::STATUS_WAITING_SUPERVISOR && $ticket->supervisor_id) {
-            app(\App\Services\Contracts\LoaServiceInterface::class)->dispatch(
+            app(LoaServiceInterface::class)->dispatch(
                 $ticket,
-                \App\Models\ExternalLoaTransaction::LEVEL_SUPERVISOR,
+                ExternalLoaTransaction::LEVEL_SUPERVISOR,
                 ['supervisor_id' => $ticket->supervisor_id]
             );
         }
@@ -539,7 +533,7 @@ class TicketController extends Controller
     public function cancel(
         Request $request,
         Ticket $ticket,
-        \App\Services\TicketStateMachine $stateMachine
+        TicketStateMachine $stateMachine
     ): RedirectResponse {
         $this->authorize('cancel', $ticket);
 
@@ -571,7 +565,7 @@ class TicketController extends Controller
     public function edit(Ticket $ticket): View
     {
         $this->authorize('update', $ticket);
-        $categories = \App\Models\TicketCategory::activeNames($ticket->category);
+        $categories = TicketCategory::activeNames($ticket->category);
 
         return view('tickets.edit', compact('ticket', 'categories'));
     }
@@ -589,13 +583,13 @@ class TicketController extends Controller
             ->with('success', "Tiket {$ticket->ticket_number} berhasil diperbarui dan diajukan ulang.");
     }
 
-    public function syncLoaStatus(Ticket $ticket, \App\Services\Contracts\LoaServiceInterface $loaService): RedirectResponse
+    public function syncLoaStatus(Ticket $ticket, LoaServiceInterface $loaService): RedirectResponse
     {
         $this->authorize('view', $ticket);
 
         $latestTransaction = $ticket->externalLoaTransactions()->latest()->first();
         if ($latestTransaction) {
-            if ($latestTransaction->sync_status === \App\Models\ExternalLoaTransaction::SYNC_FAILED) {
+            if ($latestTransaction->sync_status === ExternalLoaTransaction::SYNC_FAILED) {
                 $loaService->retry($latestTransaction);
             } else {
                 $loaService->pollStatus($latestTransaction);
@@ -607,9 +601,9 @@ class TicketController extends Controller
     }
 
     public function itHeadDecision(
-        \App\Http\Requests\ItHeadDecisionRequest $request,
+        ItHeadDecisionRequest $request,
         Ticket $ticket,
-        \App\Services\TicketStateMachine $stateMachine
+        TicketStateMachine $stateMachine
     ): RedirectResponse {
         $this->authorize('reviewItHead', $ticket);
 
@@ -640,9 +634,9 @@ class TicketController extends Controller
                 remarks: $notes ?? 'Klasifikasi Major disetujui, mengajukan LOA ke Kadiv IT & Operasional.'
             );
 
-            app(\App\Services\Contracts\LoaServiceInterface::class)->dispatch(
+            app(LoaServiceInterface::class)->dispatch(
                 $ticket,
-                \App\Models\ExternalLoaTransaction::LEVEL_KADIV_IT_OPS,
+                ExternalLoaTransaction::LEVEL_KADIV_IT_OPS,
                 ['role' => 'kadiv_it', 'title' => 'LOA Kadiv IT & Operasional']
             );
 
@@ -684,7 +678,7 @@ class TicketController extends Controller
         $this->authorize('selfAssign', $ticket);
         $user = $request->user();
 
-        $claimed = \Illuminate\Support\Facades\DB::transaction(function () use ($ticket, $user) {
+        $claimed = DB::transaction(function () use ($ticket, $user) {
             $lockedTicket = Ticket::where('id', $ticket->id)
                 ->where('status', Ticket::STATUS_READY_FOR_WORK)
                 ->whereNull('assigned_to')
@@ -701,7 +695,7 @@ class TicketController extends Controller
                 'work_started_at' => now(),
             ]);
 
-            app(\App\Services\AuditTrailService::class)->log(
+            app(AuditTrailService::class)->log(
                 ticket: $lockedTicket,
                 actor: $user,
                 action: 'IT_DEV_SELF_ASSIGN',
@@ -722,13 +716,13 @@ class TicketController extends Controller
             ->with('success', "Anda berhasil mengambil tiket {$ticket->ticket_number}. Tiket kini berstatus Dalam Pengerjaan.");
     }
 
-    public function completeWork(Request $request, Ticket $ticket, \App\Services\TicketStateMachine $stateMachine): RedirectResponse
+    public function completeWork(Request $request, Ticket $ticket, TicketStateMachine $stateMachine): RedirectResponse
     {
         $this->authorize('completeWork', $ticket);
 
         $completionNotes = $request->input('completion_notes', 'Pekerjaan teknis telah selesai.');
 
-        \App\Models\TicketActivityLog::create([
+        TicketActivityLog::create([
             'ticket_id' => $ticket->id,
             'user_id' => $request->user()->id,
             'activity_type' => 'work_completion',

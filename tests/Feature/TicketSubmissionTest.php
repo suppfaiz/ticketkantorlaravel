@@ -15,6 +15,7 @@ class TicketSubmissionTest extends TestCase
     use RefreshDatabase;
 
     protected User $requester;
+
     protected User $supervisor;
 
     protected function setUp(): void
@@ -68,5 +69,24 @@ class TicketSubmissionTest extends TestCase
 
         $response->assertSessionHasErrors(['title', 'category', 'description']);
         $this->assertDatabaseCount('tickets', 0);
+    }
+
+    public function test_requester_without_configured_supervisor_is_not_assigned_arbitrarily(): void
+    {
+        $requester = User::factory()->create([
+            'role' => User::ROLE_REQUESTER,
+            'department_id' => $this->requester->department_id,
+            'supervisor_id' => null,
+        ]);
+
+        $response = $this->actingAs($requester)->post('/tickets', [
+            'title' => 'Permohonan tanpa atasan terdaftar',
+            'category' => 'Software',
+            'description' => 'Permohonan ini harus ditolak sampai administrator menetapkan atasan.',
+        ]);
+
+        $response->assertSessionHasErrors('supervisor');
+        $this->assertNull($requester->fresh()->supervisor_id);
+        $this->assertDatabaseMissing('tickets', ['requester_id' => $requester->id]);
     }
 }

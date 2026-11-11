@@ -5,18 +5,26 @@ namespace App\Mail;
 use App\Models\Ticket;
 use App\Models\User;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class TicketStatusMail extends Mailable
+class TicketStatusMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
+    public int $tries = 3;
+
+    public int $timeout = 60;
+
     public Ticket $ticket;
+
     public string $recipientName;
+
     public string $actorName;
+
     public ?string $remarks;
 
     public function __construct(Ticket $ticket, string $recipientName, ?User $actor = null, ?string $remarks = null)

@@ -9,8 +9,11 @@ use Illuminate\Support\Facades\Log;
 class EnterpriseSsoService implements SsoServiceInterface
 {
     protected string $apiUrl;
+
     protected string $clientId;
+
     protected string $clientSecret;
+
     protected ?string $jwtPublicKey;
 
     public function __construct()
@@ -62,7 +65,7 @@ class EnterpriseSsoService implements SsoServiceInterface
                 'error' => 'Kredensial SSO tidak sah atau akun tidak ditemukan.',
             ];
         } catch (\Throwable $e) {
-            Log::error('SSO Authentication request failed: ' . $e->getMessage());
+            Log::error('SSO Authentication request failed: '.$e->getMessage());
 
             return [
                 'success' => false,
@@ -81,21 +84,78 @@ class EnterpriseSsoService implements SsoServiceInterface
             return ['valid' => false, 'error' => 'Format token JWT tidak sah.'];
         }
 
-        $payloadJson = base64_decode(strtr($parts[1], '-_', '+/'));
-        $payload = json_decode($payloadJson, true);
+        $headerJson = $this->base64UrlDecode($parts[0]);
+        $payloadJson = $this->base64UrlDecode($parts[1]);
+        $signature = $this->base64UrlDecode($parts[2]);
 
-        if (! is_array($payload)) {
-            return ['valid' => false, 'error' => 'Klaim payload JWT tidak dapat dibaca.'];
+        if ($headerJson === false || $payloadJson === false || $signature === false) {
+            return ['valid' => false, 'error' => 'Encoding token JWT tidak sah.'];
         }
 
-        // Check expiration
-        if (isset($payload['exp']) && $payload['exp'] < time()) {
+        $header = json_decode($headerJson, true);
+        $payload = json_decode($payloadJson, true);
+
+        if (! is_array($header) || ! is_array($payload)) {
+            return ['valid' => false, 'error' => 'Header atau klaim JWT tidak dapat dibaca.'];
+        }
+
+        $expectedAlgorithm = (string) config('services.sso.jwt_algorithm', 'RS256');
+        if ($expectedAlgorithm !== 'RS256' || ($header['alg'] ?? null) !== $expectedAlgorithm) {
+            return ['valid' => false, 'error' => 'Algorithm token JWT tidak diizinkan.'];
+        }
+
+        $publicKey = str_replace('\\n', "\n", trim((string) $this->jwtPublicKey));
+        if ($publicKey === '') {
+            return ['valid' => false, 'error' => 'Public key JWT SSO belum dikonfigurasi.'];
+        }
+
+        $verification = openssl_verify(
+            "{$parts[0]}.{$parts[1]}",
+            $signature,
+            $publicKey,
+            OPENSSL_ALGO_SHA256
+        );
+
+        if ($verification !== 1) {
+            return ['valid' => false, 'error' => 'Signature token JWT tidak sah.'];
+        }
+
+        $now = time();
+        if (! isset($payload['exp']) || ! is_numeric($payload['exp']) || (int) $payload['exp'] <= $now) {
             return ['valid' => false, 'error' => 'Token JWT SSO telah kedaluwarsa.'];
+        }
+
+        if (isset($payload['nbf']) && is_numeric($payload['nbf']) && (int) $payload['nbf'] > $now) {
+            return ['valid' => false, 'error' => 'Token JWT SSO belum berlaku.'];
+        }
+
+        $expectedIssuer = config('services.sso.jwt_issuer');
+        if ($expectedIssuer && ($payload['iss'] ?? null) !== $expectedIssuer) {
+            return ['valid' => false, 'error' => 'Issuer token JWT tidak sesuai.'];
+        }
+
+        $expectedAudience = config('services.sso.jwt_audience');
+        $tokenAudience = $payload['aud'] ?? null;
+        if ($expectedAudience && ! (
+            $tokenAudience === $expectedAudience ||
+            (is_array($tokenAudience) && in_array($expectedAudience, $tokenAudience, true))
+        )) {
+            return ['valid' => false, 'error' => 'Audience token JWT tidak sesuai.'];
         }
 
         return [
             'valid' => true,
             'claims' => $payload,
         ];
+    }
+
+    private function base64UrlDecode(string $value): string|false
+    {
+        $padding = strlen($value) % 4;
+        if ($padding > 0) {
+            $value .= str_repeat('=', 4 - $padding);
+        }
+
+        return base64_decode(strtr($value, '-_', '+/'), true);
     }
 }

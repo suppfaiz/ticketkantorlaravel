@@ -31,6 +31,7 @@ return new class extends Migration
             $table->timestamp('meeting_scheduled_at')->nullable();
             $table->timestamp('minutes_submitted_at')->nullable();
             $table->timestamp('minutes_approved_at')->nullable();
+            $table->timestamp('target_completion_at')->nullable();
             $table->timestamp('work_started_at')->nullable();
             $table->timestamp('work_completed_at')->nullable();
             $table->timestamp('closed_at')->nullable();

@@ -36,15 +36,18 @@ return [
     ],
 
     'sso' => [
-        'driver' => env('SSO_DRIVER', 'mock'),
+        'driver' => env('SSO_DRIVER', 'local'),
         'api_url' => env('SSO_API_URL', 'https://sso.kantor.com/api/v1'),
         'client_id' => env('SSO_CLIENT_ID', 'it-helpdesk-client'),
         'client_secret' => env('SSO_CLIENT_SECRET', ''),
         'jwt_public_key' => env('SSO_JWT_PUBLIC_KEY', ''),
+        'jwt_algorithm' => env('SSO_JWT_ALGORITHM', 'RS256'),
+        'jwt_issuer' => env('SSO_JWT_ISSUER'),
+        'jwt_audience' => env('SSO_JWT_AUDIENCE'),
     ],
 
     'loa' => [
-        'driver' => env('LOA_DRIVER', 'mock'),
+        'driver' => env('LOA_DRIVER', 'local'),
         'api_url' => env('LOA_API_URL', 'https://loa.kantor.com/api/v1'),
         'api_key' => env('LOA_API_KEY', ''),
         'webhook_secret' => env('LOA_WEBHOOK_SECRET', ''),

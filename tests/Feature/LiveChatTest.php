@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\ChatMessage;
+use App\Models\Ticket;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -68,25 +69,25 @@ class LiveChatTest extends TestCase
         $supervisor = User::factory()->create(['role' => 'supervisor', 'name' => 'Siti Atasan']);
         $itDev = User::factory()->create(['role' => 'it_developer', 'name' => 'Rian Developer']);
 
-        $ticketA = \App\Models\Ticket::create([
+        $ticketA = Ticket::create([
             'ticket_number' => 'TICK-20261105-0001',
             'requester_id' => $requester->id,
             'supervisor_id' => $supervisor->id,
             'category' => 'Software',
             'title' => 'Perbaikan Modul Laporan',
             'description' => 'Laporan bulanan gagal diunduh.',
-            'status' => \App\Models\Ticket::STATUS_IN_PROGRESS,
+            'status' => Ticket::STATUS_IN_PROGRESS,
             'assigned_to' => $itDev->id,
         ]);
 
-        $ticketB = \App\Models\Ticket::create([
+        $ticketB = Ticket::create([
             'ticket_number' => 'TICK-20261105-0002',
             'requester_id' => $requester->id,
             'supervisor_id' => $supervisor->id,
             'category' => 'Hardware',
             'title' => 'Penggantian Mouse',
             'description' => 'Mouse rusak.',
-            'status' => \App\Models\Ticket::STATUS_IN_PROGRESS,
+            'status' => Ticket::STATUS_IN_PROGRESS,
             'assigned_to' => $itDev->id,
         ]);
 
@@ -95,16 +96,16 @@ class LiveChatTest extends TestCase
             'ticket_id' => $ticketA->id,
             'message' => 'Mohon update progres modul laporan untuk Tiket A.',
         ])->assertCreated()
-          ->assertJsonPath('message.ticket_id', $ticketA->id)
-          ->assertJsonPath('message.sender_role', 'Pemohon');
+            ->assertJsonPath('message.ticket_id', $ticketA->id)
+            ->assertJsonPath('message.sender_role', 'Pemohon');
 
         // Send message on Ticket B
         $this->actingAs($itDev)->postJson(route('chat.store'), [
             'ticket_id' => $ticketB->id,
             'message' => 'Mouse baru untuk Tiket B sudah siap diambil.',
         ])->assertCreated()
-          ->assertJsonPath('message.ticket_id', $ticketB->id)
-          ->assertJsonPath('message.sender_role', 'IT Developer');
+            ->assertJsonPath('message.ticket_id', $ticketB->id)
+            ->assertJsonPath('message.sender_role', 'IT Developer');
 
         // Fetch Ticket A chat -> only returns Ticket A's message
         $resA = $this->actingAs($itDev)->getJson(route('chat.index', ['ticket_id' => $ticketA->id]));
@@ -125,14 +126,14 @@ class LiveChatTest extends TestCase
         $supervisor = User::factory()->create(['role' => 'supervisor', 'name' => 'Siti Atasan']);
         $itDev = User::factory()->create(['role' => 'it_developer', 'name' => 'Rian Developer']);
 
-        $ticket = \App\Models\Ticket::create([
+        $ticket = Ticket::create([
             'ticket_number' => 'TICK-20261105-0099',
             'requester_id' => $requester->id,
             'supervisor_id' => $supervisor->id,
             'category' => 'Software',
             'title' => 'Integrasi Modul Absensi',
             'description' => 'Sinkronisasi data mesin absensi.',
-            'status' => \App\Models\Ticket::STATUS_IN_PROGRESS,
+            'status' => Ticket::STATUS_IN_PROGRESS,
             'assigned_to' => $itDev->id,
         ]);
 
@@ -140,7 +141,7 @@ class LiveChatTest extends TestCase
             'message' => 'Apakah integrasi sudah bisa diuji coba hari ini?',
         ]);
 
-        $response->assertRedirect(route('tickets.show', $ticket) . '#discussion');
+        $response->assertRedirect(route('tickets.show', $ticket).'#discussion');
 
         $this->assertDatabaseHas('chat_messages', [
             'ticket_id' => $ticket->id,
@@ -152,5 +153,55 @@ class LiveChatTest extends TestCase
         $showResponse->assertOk()
             ->assertSee('Forum Diskusi Tiket')
             ->assertSee('Apakah integrasi sudah bisa diuji coba hari ini?');
+    }
+
+    public function test_user_cannot_send_message_to_ticket_they_cannot_view(): void
+    {
+        $owner = User::factory()->create(['role' => 'requester']);
+        $outsider = User::factory()->create(['role' => 'requester']);
+        $supervisor = User::factory()->create(['role' => 'supervisor']);
+
+        $ticket = Ticket::create([
+            'ticket_number' => 'TICK-20261105-0100',
+            'requester_id' => $owner->id,
+            'supervisor_id' => $supervisor->id,
+            'category' => 'Software',
+            'title' => 'Tiket Privat Pemilik',
+            'description' => 'Tiket ini tidak boleh diakses pengguna lain.',
+            'status' => Ticket::STATUS_WAITING_SUPERVISOR,
+        ]);
+
+        $this->actingAs($outsider)->postJson(route('chat.store'), [
+            'ticket_id' => $ticket->id,
+            'message' => 'Pesan yang tidak boleh tersimpan.',
+        ])->assertForbidden();
+
+        $this->assertDatabaseMissing('chat_messages', [
+            'ticket_id' => $ticket->id,
+            'sender_id' => $outsider->id,
+        ]);
+    }
+
+    public function test_chat_message_cannot_target_user_and_ticket_at_once(): void
+    {
+        $requester = User::factory()->create(['role' => 'requester']);
+        $recipient = User::factory()->create(['role' => 'it_head']);
+        $supervisor = User::factory()->create(['role' => 'supervisor']);
+
+        $ticket = Ticket::create([
+            'ticket_number' => 'TICK-20261105-0101',
+            'requester_id' => $requester->id,
+            'supervisor_id' => $supervisor->id,
+            'category' => 'Software',
+            'title' => 'Validasi Tujuan Chat',
+            'description' => 'Pesan hanya boleh memiliki satu jenis tujuan.',
+            'status' => Ticket::STATUS_WAITING_SUPERVISOR,
+        ]);
+
+        $this->actingAs($requester)->postJson(route('chat.store'), [
+            'ticket_id' => $ticket->id,
+            'receiver_id' => $recipient->id,
+            'message' => 'Tujuan pesan ambigu.',
+        ])->assertUnprocessable();
     }
 }

@@ -1,6 +1,6 @@
 # Panduan Deployment cPanel
 
-Dokumen ini menjelaskan target deployment NALA IT Helpdesk pada cPanel kantor. Deployment production belum boleh dilakukan sebelum seluruh blocker pada README diselesaikan dan UAT disetujui.
+Dokumen ini menjelaskan deployment NALA IT Helpdesk pada cPanel kantor. Refactor mode lokal sudah tersedia, tetapi deployment production tetap harus melalui staging dan UAT.
 
 ## 1. Informasi dari administrator server
 
@@ -34,7 +34,7 @@ Jangan mengekspos `.env`, `vendor`, `storage`, `database`, `routes`, atau source
 
 ## 3. Konfigurasi target deployment awal
 
-Setelah driver lokal selesai diimplementasikan:
+Konfigurasi deployment awal:
 
 ```env
 APP_NAME="NALA IT Helpdesk"
@@ -56,8 +56,6 @@ FILESYSTEM_DISK=local
 SESSION_SECURE_COOKIE=true
 FORCE_HTTPS=true
 ```
-
-> `local` dan `REALTIME_DRIVER` adalah target setelah refactor. Jangan memakai konfigurasi tersebut sebelum implementasi dan test-nya tersedia.
 
 ## 4. Prosedur instalasi target
 

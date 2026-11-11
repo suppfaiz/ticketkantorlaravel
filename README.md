@@ -2,7 +2,7 @@
 
 NALA IT Helpdesk adalah aplikasi internal untuk mengelola permohonan layanan dan perubahan sistem IT dari pengajuan, persetujuan berjenjang, pelaksanaan pekerjaan, sampai verifikasi dan penutupan tiket.
 
-> **Status proyek:** baseline pengembangan. Aplikasi belum direkomendasikan untuk production sebelum blocker pada bagian [Kesiapan production](#kesiapan-production) diselesaikan.
+> **Status proyek:** refactor inti untuk mode lokal dan cPanel telah diterapkan. Deployment tetap harus melewati staging, UAT, serta checklist pada bagian [Kesiapan production](#kesiapan-production).
 
 ## Fitur utama
 
@@ -99,8 +99,6 @@ npm run build
 php artisan serve
 ```
 
-> **Catatan saat ini:** fresh migration masih terhalang urutan migration `target_completion_at` yang lebih awal daripada pembuatan tabel `tickets`. Perbaiki blocker tersebut sebelum memakai langkah instalasi ini sebagai prosedur resmi.
-
 Untuk development terpadu:
 
 ```bash
@@ -116,12 +114,13 @@ php artisan test
 npm run build
 ```
 
-Hasil audit baseline:
+Hasil verifikasi terbaru:
 
 - Frontend build berhasil.
 - `npm audit --omit=dev` tidak menemukan vulnerability production dependency.
-- Test repo saat ini tertahan oleh urutan migration.
-- Pada salinan pengujian dengan urutan migration diperbaiki, 100 dari 102 test lulus; dua test registrasi sudah tidak sesuai karena registrasi publik dinonaktifkan.
+- Fresh migration melalui test database berhasil.
+- `112` automated test lulus dengan `443` assertion.
+- Test mencakup mode lokal, larangan mock di production, JWT RS256, otorisasi chat, dan workflow tiket.
 
 Release tidak boleh dilakukan sebelum fresh migration dan seluruh test yang relevan lulus.
 
@@ -130,16 +129,18 @@ Release tidak boleh dilakukan sebelum fresh migration dan seluruh test yang rele
 Konfigurasi berada pada `.env` dan dibaca melalui `config/services.php`:
 
 ```env
-SSO_DRIVER=mock
-LOA_DRIVER=mock
+SSO_DRIVER=local
+LOA_DRIVER=local
+REALTIME_DRIVER=polling
 ```
 
-Driver yang efektif pada kode saat ini:
+Driver yang tersedia:
 
+- `local`: akun, password, dan approval LOA diproses di aplikasi Helpdesk.
 - `mock`: untuk development/testing saja.
 - `api` atau `enterprise`: memakai API eksternal.
 
-Mode `local` yang aman untuk deployment awal **belum diimplementasikan**. Nilai selain `api`/`enterprise` saat ini masih jatuh ke mock. Refactor berikutnya harus menambahkan pemilihan eksplisit `local`, `api`, dan `mock`, serta menolak mock di production.
+Driver dipilih secara eksplisit. Driver tidak dikenal menghasilkan error dan driver mock ditolak pada environment production.
 
 Rancangan perpindahan local-to-API dijelaskan di [Dokumentasi Integrasi](docs/INTEGRATION.md).
 
@@ -165,18 +166,24 @@ Endpoint internal menggunakan session Laravel dan middleware autentikasi, bukan 
 
 ## Kesiapan production
 
-Blocker yang harus diselesaikan sebelum deployment:
+Refactor yang sudah selesai:
 
-1. Memperbaiki urutan migration agar `migrate:fresh` berhasil.
-2. Menambahkan autentikasi lokal yang eksplisit dan aman.
-3. Menambahkan `LocalLoaService` untuk approval di aplikasi.
-4. Menolak driver mock pada environment production.
-5. Memperbaiki otorisasi pengiriman chat bertiket.
-6. Memverifikasi signature, issuer, audience, algorithm, dan expiry JWT SSO.
-7. Memperbarui test registrasi publik dan membuat seluruh test hijau.
-8. Menentukan strategi polling/WebSocket yang kompatibel dengan cPanel.
-9. Memindahkan email dan komunikasi eksternal ke queue.
-10. Menyelesaikan UAT seluruh role pada staging.
+- Fresh migration dan seluruh automated test lulus.
+- Autentikasi lokal dan LOA lokal tersedia.
+- Pemilihan driver bersifat eksplisit dan fail-safe.
+- Mock ditolak di production.
+- Otorisasi chat bertiket diperketat.
+- JWT API diverifikasi dengan RS256 dan claim yang dikonfigurasi.
+- Realtime default memakai polling; WebSocket bersifat opsional.
+- Email status tiket menggunakan queue.
+
+Pekerjaan operasional sebelum go-live:
+
+1. Menyiapkan staging cPanel, database, HTTPS, SMTP, queue, dan cron.
+2. Mengganti credential admin awal dengan nilai unik dan kuat.
+3. Menjalankan UAT seluruh role dan workflow Minor/Major.
+4. Menguji backup serta restore database dan attachment.
+5. Menjalankan smoke test dan monitoring setelah deployment.
 
 Lihat [Panduan Deployment cPanel](docs/DEPLOYMENT_CPANEL.md) untuk checklist yang lebih rinci.
 

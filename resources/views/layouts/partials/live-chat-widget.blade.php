@@ -7,6 +7,10 @@
         isOpen: localStorage.getItem('nala_ticket_chat_open_{{ $ticket->id }}') === 'true',
         wsConnected: false,
         ws: null,
+        pollTimer: null,
+        realtimeDriver: @js(config('realtime.driver', 'polling')),
+        websocketUrl: @js(config('realtime.websocket_url')),
+        pollIntervalMs: {{ max(2000, (int) config('realtime.poll_interval_ms', 5000)) }},
         currentUserId: {{ (int) auth()->id() }},
         currentUserName: @js(auth()->user()->name),
         currentUserRole: @js(match(auth()->user()->role) {
@@ -30,16 +34,26 @@
         lastTypingSentAt: 0,
 
         init() {
-            this.fetchMessages();
-            this.connectWebSocket();
+            if (this.isOpen) {
+                this.fetchMessages();
+            }
+
+            if (this.realtimeDriver === 'websocket') {
+                this.connectWebSocket();
+            } else {
+                this.startPolling();
+            }
 
             this.$watch('isOpen', (val) => {
                 localStorage.setItem('nala_ticket_chat_open_' + this.ticketId, val ? 'true' : 'false');
                 if (val) {
                     this.unreadCount = 0;
                     this.fetchMessages();
+                    if (!this.wsConnected) this.startPolling();
                     this.scrollToBottom();
                     this.$nextTick(() => this.$refs.chatInput?.focus());
+                } else {
+                    this.stopPolling();
                 }
             });
         },
@@ -50,13 +64,17 @@
         },
 
         connectWebSocket() {
-            const wsHost = window.location.hostname || '127.0.0.1';
-            const wsPort = {{ (int) env('WEBSOCKET_PORT', 6001) }};
+            if (this.realtimeDriver !== 'websocket' || !this.websocketUrl) {
+                this.startPolling();
+                return;
+            }
+
             try {
-                this.ws = new WebSocket(`ws://${wsHost}:${wsPort}`);
+                this.ws = new WebSocket(this.websocketUrl);
 
                 this.ws.onopen = () => {
                     this.wsConnected = true;
+                    this.stopPolling();
                 };
 
                 this.ws.onmessage = (event) => {
@@ -72,16 +90,34 @@
 
                 this.ws.onclose = () => {
                     this.wsConnected = false;
+                    this.startPolling();
                     setTimeout(() => this.connectWebSocket(), 2500);
                 };
 
                 this.ws.onerror = () => {
                     this.wsConnected = false;
+                    this.startPolling();
                 };
             } catch (e) {
                 this.wsConnected = false;
+                this.startPolling();
                 setTimeout(() => this.connectWebSocket(), 3000);
             }
+        },
+
+        startPolling() {
+            if (!this.isOpen || this.pollTimer || this.wsConnected) return;
+            this.pollTimer = setInterval(() => {
+                if (document.visibilityState === 'visible' && this.isOpen && !this.wsConnected) {
+                    this.fetchMessages();
+                }
+            }, this.pollIntervalMs);
+        },
+
+        stopPolling() {
+            if (!this.pollTimer) return;
+            clearInterval(this.pollTimer);
+            this.pollTimer = null;
         },
 
         notifyTyping() {

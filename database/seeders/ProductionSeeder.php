@@ -51,8 +51,16 @@ class ProductionSeeder extends Seeder
         }
 
         // 3. Initial System Administrator Account
-        $adminEmail = env('INITIAL_ADMIN_EMAIL', 'admin@kantor.internal');
-        $adminPassword = env('INITIAL_ADMIN_PASSWORD', 'AdminNala#2026');
+        $adminEmail = trim((string) env('INITIAL_ADMIN_EMAIL'));
+        $adminPassword = (string) env('INITIAL_ADMIN_PASSWORD');
+
+        if ($adminEmail === '' || ! filter_var($adminEmail, FILTER_VALIDATE_EMAIL)) {
+            throw new \RuntimeException('INITIAL_ADMIN_EMAIL wajib diisi dengan alamat email yang valid.');
+        }
+
+        if (strlen($adminPassword) < 12) {
+            throw new \RuntimeException('INITIAL_ADMIN_PASSWORD wajib diisi minimal 12 karakter.');
+        }
 
         User::firstOrCreate(
             ['email' => $adminEmail],
