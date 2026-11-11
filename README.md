@@ -1,66 +1,213 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# NALA IT Helpdesk
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+NALA IT Helpdesk adalah aplikasi internal untuk mengelola permohonan layanan dan perubahan sistem IT dari pengajuan, persetujuan berjenjang, pelaksanaan pekerjaan, sampai verifikasi dan penutupan tiket.
 
-## About Laravel
+> **Status proyek:** baseline pengembangan. Aplikasi belum direkomendasikan untuk production sebelum blocker pada bagian [Kesiapan production](#kesiapan-production) diselesaikan.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Fitur utama
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+- Pengajuan tiket beserta kategori, prioritas, deskripsi, dan lampiran.
+- Draf, pembatalan, revisi, dan pelacakan status tiket.
+- Persetujuan Supervisor dan klasifikasi Minor/Major oleh Kabag IT.
+- Rantai persetujuan Major melalui Kadiv IT dan Direksi.
+- Penjadwalan rapat, notulensi, revisi, dan persetujuan notulensi.
+- Pool pekerjaan dan self-assignment untuk IT Developer.
+- Catatan aktivitas, lampiran pekerjaan, dan penyelesaian pekerjaan.
+- Verifikasi hasil, rating, dan permintaan revisi oleh pemohon.
+- Dashboard berbeda untuk setiap role.
+- Kalender, timeline, laporan CSV, audit trail, diskusi tiket, dan chat.
+- Adapter integrasi SSO dan LOA eksternal yang akan digunakan pada fase berikutnya.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Role pengguna
 
-## Learning Laravel
+| Role | Tanggung jawab utama |
+|---|---|
+| `requester` | Mengajukan tiket, melengkapi revisi/notulensi, dan memverifikasi hasil |
+| `supervisor` | Menyetujui, menolak, atau meminta revisi tiket bawahan |
+| `it_head` | Mengklasifikasikan tiket, menetapkan target/teknisi, dan menyetujui notulensi |
+| `kadiv_it` | Memberikan keputusan LOA tahap Kadiv untuk tiket Major |
+| `direksi` | Memberikan keputusan LOA tahap Direksi untuk tiket Major |
+| `it_developer` | Mengambil tiket, mencatat progres, dan menyelesaikan pekerjaan |
+| `admin` | Mengelola pengguna, departemen, kategori, serta membantu operasional |
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+## Alur tiket
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+### Tiket Minor
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+```text
+Requester
+  -> Supervisor
+  -> Kabag IT (klasifikasi Minor)
+  -> Pool/penugasan IT Developer
+  -> Pengerjaan
+  -> Verifikasi Requester
+  -> Selesai atau revisi pekerjaan
+```
 
-## Laravel Sponsors
+### Tiket Major
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+```text
+Requester
+  -> Supervisor
+  -> Kabag IT (klasifikasi Major)
+  -> Kadiv IT
+  -> Direksi
+  -> Rapat dan notulensi
+  -> Persetujuan Kabag IT
+  -> Pool/penugasan IT Developer
+  -> Pengerjaan
+  -> Verifikasi Requester
+  -> Selesai atau revisi pekerjaan
+```
 
-### Premium Partners
+Status tiket divalidasi melalui `TicketStateMachine` dan setiap transisi penting dicatat pada audit trail.
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+## Teknologi
 
-## Contributing
+- PHP `^8.2`
+- Laravel `^11.31`
+- MySQL/MariaDB untuk production; SQLite in-memory untuk test
+- Blade, Alpine.js, Tailwind CSS, dan Vite
+- Chart.js dan Trumbowyg
+- PHPUnit 11
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## Menjalankan secara lokal
 
-## Code of Conduct
+### Prasyarat
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+- PHP 8.2 atau lebih baru beserta extension Laravel yang dibutuhkan
+- Composer 2
+- Node.js dan npm
+- SQLite atau MySQL/MariaDB
 
-## Security Vulnerabilities
+### Instalasi
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```bash
+git clone https://github.com/suppfaiz/ticketkantorlaravel.git
+cd ticketkantorlaravel
+composer install
+npm ci
+cp .env.example .env
+php artisan key:generate
+```
 
-## License
+Atur koneksi database di `.env`, lalu jalankan:
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+```bash
+php artisan migrate --seed
+npm run build
+php artisan serve
+```
+
+> **Catatan saat ini:** fresh migration masih terhalang urutan migration `target_completion_at` yang lebih awal daripada pembuatan tabel `tickets`. Perbaiki blocker tersebut sebelum memakai langkah instalasi ini sebagai prosedur resmi.
+
+Untuk development terpadu:
+
+```bash
+composer run dev
+```
+
+Seeder non-production membuat akun demonstrasi dengan password `password`. Akun tersebut hanya untuk local development/testing dan tidak dibuat oleh `ProductionSeeder`.
+
+## Pengujian
+
+```bash
+php artisan test
+npm run build
+```
+
+Hasil audit baseline:
+
+- Frontend build berhasil.
+- `npm audit --omit=dev` tidak menemukan vulnerability production dependency.
+- Test repo saat ini tertahan oleh urutan migration.
+- Pada salinan pengujian dengan urutan migration diperbaiki, 100 dari 102 test lulus; dua test registrasi sudah tidak sesuai karena registrasi publik dinonaktifkan.
+
+Release tidak boleh dilakukan sebelum fresh migration dan seluruh test yang relevan lulus.
+
+## Konfigurasi autentikasi dan LOA
+
+Konfigurasi berada pada `.env` dan dibaca melalui `config/services.php`:
+
+```env
+SSO_DRIVER=mock
+LOA_DRIVER=mock
+```
+
+Driver yang efektif pada kode saat ini:
+
+- `mock`: untuk development/testing saja.
+- `api` atau `enterprise`: memakai API eksternal.
+
+Mode `local` yang aman untuk deployment awal **belum diimplementasikan**. Nilai selain `api`/`enterprise` saat ini masih jatuh ke mock. Refactor berikutnya harus menambahkan pemilihan eksplisit `local`, `api`, dan `mock`, serta menolak mock di production.
+
+Rancangan perpindahan local-to-API dijelaskan di [Dokumentasi Integrasi](docs/INTEGRATION.md).
+
+## Endpoint API
+
+### Public webhook
+
+```http
+POST /api/v1/webhooks/loa-decision
+```
+
+Webhook menerima keputusan LOA eksternal dan dilindungi signature HMAC.
+
+### Endpoint JSON internal
+
+```http
+GET  /chat/messages
+POST /chat/messages
+POST /tickets/{ticket}/discussions
+```
+
+Endpoint internal menggunakan session Laravel dan middleware autentikasi, bukan public REST API.
+
+## Kesiapan production
+
+Blocker yang harus diselesaikan sebelum deployment:
+
+1. Memperbaiki urutan migration agar `migrate:fresh` berhasil.
+2. Menambahkan autentikasi lokal yang eksplisit dan aman.
+3. Menambahkan `LocalLoaService` untuk approval di aplikasi.
+4. Menolak driver mock pada environment production.
+5. Memperbaiki otorisasi pengiriman chat bertiket.
+6. Memverifikasi signature, issuer, audience, algorithm, dan expiry JWT SSO.
+7. Memperbarui test registrasi publik dan membuat seluruh test hijau.
+8. Menentukan strategi polling/WebSocket yang kompatibel dengan cPanel.
+9. Memindahkan email dan komunikasi eksternal ke queue.
+10. Menyelesaikan UAT seluruh role pada staging.
+
+Lihat [Panduan Deployment cPanel](docs/DEPLOYMENT_CPANEL.md) untuk checklist yang lebih rinci.
+
+## Struktur direktori penting
+
+```text
+app/Services/              Integrasi SSO, LOA, state machine, dan audit trail
+app/Policies/              Aturan otorisasi tiket dan notulensi
+database/migrations/       Skema database
+database/seeders/          Master data development/production
+resources/views/           Antarmuka Blade
+routes/web.php             Halaman dan aksi berbasis session
+routes/api.php             Webhook/API publik
+specs/                     Spesifikasi dan rencana fitur
+tests/                     Unit dan feature tests
+docs/                      Dokumentasi operasional dan integrasi
+```
+
+## Dokumen terkait
+
+- [Panduan deployment cPanel](docs/DEPLOYMENT_CPANEL.md)
+- [Rancangan integrasi SSO dan LOA](docs/INTEGRATION.md)
+- [Desain antarmuka](DESIGN.md)
+- [Spesifikasi fitur](specs/)
+- [Laporan audit keamanan](Laporan_Audit_Keamanan_Aplikasi_Helpdesk_IT.pdf)
+
+## Keamanan
+
+- Jangan commit `.env`, private key, token, database, log, atau attachment pengguna.
+- Gunakan `APP_DEBUG=false` di production.
+- Gunakan HTTPS dan secure session cookie.
+- Ganti credential admin awal sebelum seeding production.
+- Simpan source Laravel di luar public document root bila cPanel memungkinkan.
+- Laporkan vulnerability secara privat kepada pengelola sistem; jangan menuliskan credential atau data pengguna pada GitHub issue.
