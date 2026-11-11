@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ApprovalDelegation;
 use App\Models\Ticket;
 use App\Models\User;
 use Illuminate\Validation\ValidationException;
@@ -118,40 +119,7 @@ class TicketStateMachine
      */
     public function dispatchStatusNotification(Ticket $ticket, string $toStatus, ?User $actor = null, ?string $remarks = null): void
     {
-        try {
-            $ticket->loadMissing(['requester', 'supervisor', 'assignedTo']);
-            $recipients = collect();
-
-            if ($toStatus === Ticket::STATUS_WAITING_SUPERVISOR && $ticket->supervisor) {
-                $recipients->push($ticket->supervisor);
-            } elseif (in_array($toStatus, [
-                Ticket::STATUS_WAITING_IT_HEAD,
-                Ticket::STATUS_WAITING_MAJOR_MEETING,
-                Ticket::STATUS_WAITING_MINUTES_APPROVAL,
-            ], true)) {
-                $recipients = User::where('role', User::ROLE_IT_HEAD)->where('is_active', true)->get();
-            } elseif ($toStatus === Ticket::STATUS_WAITING_LOA_KADIV_IT) {
-                $recipients = User::where('role', User::ROLE_KADIV_IT)->where('is_active', true)->get();
-            } elseif ($toStatus === Ticket::STATUS_WAITING_LOA_DIREKSI) {
-                $recipients = User::where('role', User::ROLE_DIREKSI)->where('is_active', true)->get();
-            } elseif ($toStatus === Ticket::STATUS_READY_FOR_WORK) {
-                $recipients = User::where('role', User::ROLE_IT_DEVELOPER)->where('is_active', true)->get();
-            } elseif ($toStatus === Ticket::STATUS_REVISION_WORK && $ticket->assignedTo) {
-                $recipients->push($ticket->assignedTo);
-            } elseif ($ticket->requester) {
-                $recipients->push($ticket->requester);
-            }
-
-            foreach ($recipients->unique('email') as $recipient) {
-                if (! empty($recipient->email) && (! $actor || (int) $recipient->id !== (int) $actor->id)) {
-                    \Illuminate\Support\Facades\Mail::to($recipient->email)->send(
-                        new \App\Mail\TicketStatusMail($ticket, $recipient->name, $actor, $remarks)
-                    );
-                }
-            }
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('Gagal mengirim email notifikasi tiket: ' . $e->getMessage());
-        }
+        app(TicketNotificationService::class)->statusChanged($ticket, $toStatus, $actor, $remarks);
     }
 
     public function isTransitionAllowed(string $from, string $to): bool
@@ -247,7 +215,11 @@ class TicketStateMachine
 
         // Transition: Supervisor decision
         if ($from === Ticket::STATUS_WAITING_SUPERVISOR) {
-            if ($ticket->supervisor_id !== $actor->id && ! $actor->isAdmin()) {
+            $supervisor = $ticket->supervisor;
+            $canAct = $supervisor && app(ApprovalDelegationService::class)
+                ->canActFor($actor, $supervisor, ApprovalDelegation::SCOPE_SUPERVISOR);
+
+            if (! $canAct && ! $actor->isAdmin()) {
                 throw ValidationException::withMessages([
                     'authorization' => 'Hanya Atasan Langsung dari pemohon yang berhak memproses persetujuan ini.',
                 ]);
@@ -256,7 +228,7 @@ class TicketStateMachine
 
         // Transition: IT Head decision
         if ($from === Ticket::STATUS_WAITING_IT_HEAD || $from === Ticket::STATUS_WAITING_MINUTES_APPROVAL) {
-            if (! $actor->isItHead() && ! $actor->isAdmin()) {
+            if (! app(ApprovalDelegationService::class)->actsForRole($actor, User::ROLE_IT_HEAD, ApprovalDelegation::SCOPE_IT_HEAD) && ! $actor->isAdmin()) {
                 throw ValidationException::withMessages([
                     'authorization' => 'Hanya Kepala Bagian IT yang berwenang mengambil keputusan ini.',
                 ]);
@@ -265,7 +237,7 @@ class TicketStateMachine
 
         // Transition: Kadiv IT decision (Tahap C.1)
         if ($from === Ticket::STATUS_WAITING_LOA_KADIV_IT) {
-            if (! $actor->isKadivIt() && ! $actor->isAdmin()) {
+            if (! app(ApprovalDelegationService::class)->actsForRole($actor, User::ROLE_KADIV_IT, ApprovalDelegation::SCOPE_KADIV_IT) && ! $actor->isAdmin()) {
                 throw ValidationException::withMessages([
                     'authorization' => 'Hanya Kepala Divisi IT dan Operasional yang berwenang memproses persetujuan LOA ini.',
                 ]);
@@ -274,7 +246,7 @@ class TicketStateMachine
 
         // Transition: Direksi decision (Tahap C.2)
         if ($from === Ticket::STATUS_WAITING_LOA_DIREKSI) {
-            if (! $actor->isDireksi() && ! $actor->isAdmin()) {
+            if (! app(ApprovalDelegationService::class)->actsForRole($actor, User::ROLE_DIREKSI, ApprovalDelegation::SCOPE_DIREKSI) && ! $actor->isAdmin()) {
                 throw ValidationException::withMessages([
                     'authorization' => 'Hanya Dewan Direksi yang berwenang memproses persetujuan LOA ini.',
                 ]);

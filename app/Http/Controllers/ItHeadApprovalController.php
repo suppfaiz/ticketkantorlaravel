@@ -5,16 +5,21 @@ namespace App\Http\Controllers;
 use App\Http\Requests\ItHeadClassifyRequest;
 use App\Http\Requests\ItHeadRejectRequest;
 use App\Http\Requests\ItHeadReviseRequest;
+use App\Models\ExternalLoaTransaction;
 use App\Models\Ticket;
 use App\Models\User;
 use App\Services\AuditTrailService;
+use App\Services\Contracts\LoaServiceInterface;
+use App\Services\TicketNotificationService;
 use App\Services\TicketStateMachine;
+use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 class ItHeadApprovalController extends Controller
 {
     protected TicketStateMachine $stateMachine;
+
     protected AuditTrailService $auditTrailService;
 
     public function __construct(TicketStateMachine $stateMachine, AuditTrailService $auditTrailService)
@@ -35,7 +40,7 @@ class ItHeadApprovalController extends Controller
             $updates['priority'] = $priority;
         }
         if ($targetCompletionAt) {
-            $updates['target_completion_at'] = \Carbon\Carbon::parse($targetCompletionAt)->endOfDay();
+            $updates['target_completion_at'] = Carbon::parse($targetCompletionAt)->endOfDay();
         }
 
         $assignedDev = null;
@@ -63,7 +68,7 @@ class ItHeadApprovalController extends Controller
                     toStatus: Ticket::STATUS_IN_PROGRESS,
                     actor: $request->user(),
                     action: 'IT_HEAD_CLASSIFY_MINOR_AND_ASSIGN',
-                    remarks: ($request->input('notes') ? $request->input('notes') . ' — ' : '') . "Ditugaskan langsung ke {$assignedDev->name}."
+                    remarks: ($request->input('notes') ? $request->input('notes').' — ' : '')."Ditugaskan langsung ke {$assignedDev->name}."
                 );
 
                 return redirect()->route('tickets.show', $ticket)
@@ -91,9 +96,9 @@ class ItHeadApprovalController extends Controller
             remarks: $request->input('notes') ?? 'Klasifikasi Major disetujui, mengajukan LOA ke Kadiv IT & Operasional.'
         );
 
-        app(\App\Services\Contracts\LoaServiceInterface::class)->dispatch(
+        app(LoaServiceInterface::class)->dispatch(
             $ticket,
-            \App\Models\ExternalLoaTransaction::LEVEL_KADIV_IT_OPS,
+            ExternalLoaTransaction::LEVEL_KADIV_IT_OPS,
             ['role' => 'kadiv_it', 'title' => 'LOA Kadiv IT & Operasional']
         );
 
@@ -117,19 +122,22 @@ class ItHeadApprovalController extends Controller
 
         $changes = [];
         $updates = [];
+        $newSupervisor = null;
+        $oldSupervisor = $ticket->supervisor;
 
         if (! empty($validated['supervisor_id']) && (int) $validated['supervisor_id'] !== (int) $ticket->supervisor_id) {
             $newSup = User::where('id', (int) $validated['supervisor_id'])
                 ->where('is_active', true)
                 ->first();
             if ($newSup) {
+                $newSupervisor = $newSup;
                 $updates['supervisor_id'] = $newSup->id;
                 $changes[] = "Atasan peninjau dialihkan ke: {$newSup->name}";
             }
         }
 
         $newTimeline = ! empty($validated['target_completion_at'])
-            ? \Carbon\Carbon::parse($validated['target_completion_at'])->endOfDay()
+            ? Carbon::parse($validated['target_completion_at'])->endOfDay()
             : null;
 
         $oldTimelineStr = $ticket->target_completion_at?->format('d/m/Y');
@@ -143,6 +151,7 @@ class ItHeadApprovalController extends Controller
         }
 
         $oldAssignedId = $ticket->assigned_to ? (int) $ticket->assigned_to : null;
+        $oldDeveloper = $oldAssignedId ? User::find($oldAssignedId) : null;
         $newAssignedId = ! empty($validated['assigned_to']) ? (int) $validated['assigned_to'] : null;
         $newDev = null;
 
@@ -175,7 +184,7 @@ class ItHeadApprovalController extends Controller
 
             $remarkText = implode('; ', $changes);
             if (! empty($validated['notes'])) {
-                $remarkText .= ' — Catatan: ' . trim($validated['notes']);
+                $remarkText .= ' — Catatan: '.trim($validated['notes']);
             }
 
             $this->stateMachine->transition(
@@ -194,7 +203,7 @@ class ItHeadApprovalController extends Controller
 
         $remarkText = implode('; ', $changes);
         if (! empty($validated['notes'])) {
-            $remarkText .= ($remarkText ? ' — ' : '') . 'Catatan: ' . trim($validated['notes']);
+            $remarkText .= ($remarkText ? ' — ' : '').'Catatan: '.trim($validated['notes']);
         }
 
         $this->auditTrailService->log(
@@ -206,15 +215,16 @@ class ItHeadApprovalController extends Controller
             remarks: $remarkText ?: 'Pengaturan timeline/teknisi diperbarui oleh Kabag IT.'
         );
 
-        if ($newDev) {
-            try {
-                \Illuminate\Support\Facades\Mail::to($newDev->email)->send(
-                    new \App\Mail\TicketStatusMail($ticket, $newDev->name, $request->user(), $remarkText)
-                );
-            } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::warning('Gagal mengirim email penugasan teknisi: ' . $e->getMessage());
-            }
-        }
+        $ticket->load(['requester', 'supervisor', 'assignedTo']);
+        app(TicketNotificationService::class)->notifyUsers(
+            ticket: $ticket,
+            recipients: [$ticket->requester, $ticket->assignedTo, $oldDeveloper, $newSupervisor, $newSupervisor ? $oldSupervisor : null],
+            event: 'assignment_updated',
+            title: 'Penugasan atau target diperbarui',
+            message: $remarkText ?: 'Pengaturan timeline atau teknisi diperbarui oleh Kepala Bagian IT.',
+            actor: $request->user(),
+            sendEmail: true,
+        );
 
         return redirect()->route('tickets.show', $ticket)
             ->with('success', 'Pengaturan Timeline & Penugasan Teknisi berhasil diperbarui.');

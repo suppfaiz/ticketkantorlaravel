@@ -8,7 +8,9 @@ class ScheduleMeetingRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user() !== null && ($this->user()->isItHead() || $this->user()->isAdmin());
+        $ticket = $this->route('ticket');
+
+        return $ticket && $this->user() && $this->user()->can('scheduleMeeting', $ticket);
     }
 
     public function rules(): array

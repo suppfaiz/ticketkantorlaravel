@@ -8,7 +8,9 @@ class ItHeadDecisionRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user() !== null && ($this->user()->isItHead() || $this->user()->isAdmin());
+        $ticket = $this->route('ticket');
+
+        return $ticket && $this->user() && $this->user()->can('itHeadDecide', $ticket);
     }
 
     public function rules(): array

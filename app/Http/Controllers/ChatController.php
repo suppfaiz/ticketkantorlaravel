@@ -6,6 +6,7 @@ use App\Models\ChatMessage;
 use App\Models\Ticket;
 use App\Models\TicketAttachment;
 use App\Models\User;
+use App\Services\TicketNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -169,6 +170,16 @@ class ChatController extends Controller
             'ticket_id' => $ticket->id,
             'message' => $messageText,
         ]);
+
+        $ticket->loadMissing(['requester', 'supervisor', 'assignedTo']);
+        app(TicketNotificationService::class)->notifyUsers(
+            ticket: $ticket,
+            recipients: [$ticket->requester, $ticket->supervisor, $ticket->assignedTo],
+            event: 'discussion_added',
+            title: 'Diskusi tiket diperbarui',
+            message: $request->user()->name.' menambahkan komentar pada diskusi tiket.',
+            actor: $request->user(),
+        );
 
         if ($request->expectsJson() || $request->ajax()) {
             $chatMessage->load(['sender:id,name,role']);

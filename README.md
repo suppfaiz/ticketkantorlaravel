@@ -16,6 +16,8 @@ NALA IT Helpdesk adalah aplikasi internal untuk mengelola permohonan layanan dan
 - Verifikasi hasil, rating, dan permintaan revisi oleh pemohon.
 - Dashboard berbeda untuk setiap role.
 - Kalender, timeline, laporan CSV, audit trail, diskusi tiket, dan chat.
+- Notifikasi tersimpan dengan status dibaca/belum dibaca untuk perubahan status, assignment, progres, dan diskusi tiket.
+- Delegasi approval bertanggal untuk menggantikan Supervisor, Kabag IT, Kadiv IT, atau Direksi yang sedang tidak tersedia.
 - Adapter integrasi SSO dan LOA eksternal yang akan digunakan pada fase berikutnya.
 
 ## Role pengguna
@@ -119,7 +121,7 @@ Hasil verifikasi terbaru:
 - Frontend build berhasil.
 - `npm audit --omit=dev` tidak menemukan vulnerability production dependency.
 - Fresh migration melalui test database berhasil.
-- `112` automated test lulus dengan `443` assertion.
+- `120` automated test lulus dengan `474` assertion.
 - Test mencakup mode lokal, larangan mock di production, JWT RS256, otorisasi chat, dan workflow tiket.
 
 Release tidak boleh dilakukan sebelum fresh migration dan seluruh test yang relevan lulus.
@@ -176,6 +178,8 @@ Refactor yang sudah selesai:
 - JWT API diverifikasi dengan RS256 dan claim yang dikonfigurasi.
 - Realtime default memakai polling; WebSocket bersifat opsional.
 - Email status tiket menggunakan queue.
+- Lonceng memakai riwayat notifikasi database yang konsisten pada desktop dan mobile.
+- Delegasi approval memiliki periode aktif, cakupan kewenangan, penerima pengganti, dan pencatatan pembuat delegasi.
 
 Pekerjaan operasional sebelum go-live:
 

@@ -3,7 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Ticket;
+use App\Models\TicketActivityLog;
 use App\Services\AuditTrailService;
+use App\Services\TicketNotificationService;
+use App\Services\TicketStateMachine;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -37,13 +40,22 @@ class TicketAssignmentController extends Controller
                 ->with('error', 'Tiket ini baru saja diambil oleh anggota Tim IT yang lain.');
         }
 
+        $freshTicket = $ticket->fresh();
+
         $this->auditTrailService->log(
-            ticket: $ticket->fresh(),
+            ticket: $freshTicket,
             actor: $user,
             action: 'IT_DEV_SELF_ASSIGN',
             fromStatus: Ticket::STATUS_READY_FOR_WORK,
             toStatus: Ticket::STATUS_IN_PROGRESS,
             remarks: "Tiket diambil mandiri (self-assign) oleh {$user->name}."
+        );
+
+        app(TicketNotificationService::class)->statusChanged(
+            $freshTicket,
+            Ticket::STATUS_IN_PROGRESS,
+            $user,
+            "Tiket mulai dikerjakan oleh {$user->name}.",
         );
 
         return redirect()->route('tickets.show', $ticket)
@@ -56,7 +68,7 @@ class TicketAssignmentController extends Controller
     public function releaseToPool(
         Request $request,
         Ticket $ticket,
-        \App\Services\TicketStateMachine $stateMachine
+        TicketStateMachine $stateMachine
     ): RedirectResponse {
         $this->authorize('releaseToPool', $ticket);
 
@@ -71,7 +83,7 @@ class TicketAssignmentController extends Controller
         $reason = trim($validated['reason']);
         $previousDevName = $ticket->assignedTo?->name ?? $actor->name;
 
-        \App\Models\TicketActivityLog::create([
+        TicketActivityLog::create([
             'ticket_id' => $ticket->id,
             'user_id' => $actor->id,
             'activity_type' => 'release_to_pool',

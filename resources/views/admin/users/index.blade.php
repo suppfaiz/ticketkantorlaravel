@@ -3,6 +3,9 @@
         <div class="flex items-center justify-between gap-2 sm:gap-3 py-1">
             <h1 class="text-base sm:text-xl font-bold text-slate-900 tracking-tight truncate">Kelola Pengguna, Divisi &amp; Kategori</h1>
             <div class="flex items-center gap-2 shrink-0">
+                <a href="{{ route('admin.delegations.index') }}" class="hidden sm:inline-flex btn-secondary text-xs py-2 px-3 items-center gap-1.5">
+                    Delegasi Approval
+                </a>
                 <button
                     type="button"
                     x-data

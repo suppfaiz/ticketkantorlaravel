@@ -5,11 +5,13 @@ namespace App\Http\Controllers;
 use App\Http\Requests\ItHeadDecisionRequest;
 use App\Http\Requests\StoreTicketRequest;
 use App\Http\Requests\UpdateTicketRequest;
+use App\Models\ApprovalDelegation;
 use App\Models\ExternalLoaTransaction;
 use App\Models\Ticket;
 use App\Models\TicketActivityLog;
 use App\Models\TicketCategory;
 use App\Models\User;
+use App\Services\ApprovalDelegationService;
 use App\Services\AuditTrailService;
 use App\Services\Contracts\LoaServiceInterface;
 use App\Services\TicketService;
@@ -38,12 +40,24 @@ class TicketController extends Controller
             ->latest('created_at')
             ->orderByDesc('id');
 
+        $delegations = app(ApprovalDelegationService::class);
+        $hasExecutiveDelegation = $delegations->actsForRole($user, User::ROLE_IT_HEAD, ApprovalDelegation::SCOPE_IT_HEAD)
+            || $delegations->actsForRole($user, User::ROLE_KADIV_IT, ApprovalDelegation::SCOPE_KADIV_IT)
+            || $delegations->actsForRole($user, User::ROLE_DIREKSI, ApprovalDelegation::SCOPE_DIREKSI);
+
         // Scope queries by role (least privilege)
-        if ($user->isRequester()) {
+        if ($hasExecutiveDelegation || $user->isAdmin()) {
+            // Existing executive flow grants visibility to the full ticket list.
+        } elseif ($user->isRequester()) {
             $query->where('requester_id', $user->id);
         } elseif ($user->isSupervisor()) {
-            $query->where(function ($q) use ($user) {
-                $q->where('supervisor_id', $user->id)
+            $supervisorIds = $delegations
+                ->delegatedUserIds($user, ApprovalDelegation::SCOPE_SUPERVISOR)
+                ->push($user->id)
+                ->unique();
+
+            $query->where(function ($q) use ($user, $supervisorIds) {
+                $q->whereIn('supervisor_id', $supervisorIds)
                     ->orWhere('requester_id', $user->id);
             });
         } elseif ($user->isItDeveloper()) {

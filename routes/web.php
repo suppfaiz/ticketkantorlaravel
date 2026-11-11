@@ -1,9 +1,11 @@
 <?php
 
 use App\Http\Controllers\AttachmentController;
+use App\Http\Controllers\ApprovalDelegationController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ItHeadApprovalController;
 use App\Http\Controllers\MeetingMinutesController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SupervisorApprovalController;
 use App\Http\Controllers\TicketActivityController;
@@ -18,51 +20,9 @@ Route::get('/', function () {
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-    Route::get('/notifications', function (\Illuminate\Http\Request $request) {
-        $authUser = $request->user();
-        $query = \App\Models\Ticket::with(['requester.department', 'supervisor', 'assignedTo']);
-
-        if ($authUser->isSupervisor()) {
-            $query->where('supervisor_id', $authUser->id)
-                ->where('status', \App\Models\Ticket::STATUS_WAITING_SUPERVISOR);
-        } elseif ($authUser->isItHead() || $authUser->isAdmin()) {
-            $query->whereIn('status', [
-                \App\Models\Ticket::STATUS_WAITING_IT_HEAD,
-                \App\Models\Ticket::STATUS_WAITING_MAJOR_MEETING,
-                \App\Models\Ticket::STATUS_WAITING_MINUTES_APPROVAL,
-            ]);
-        } elseif ($authUser->isKadivIt()) {
-            $query->where('status', \App\Models\Ticket::STATUS_WAITING_LOA_KADIV_IT);
-        } elseif ($authUser->isDireksi()) {
-            $query->where('status', \App\Models\Ticket::STATUS_WAITING_LOA_DIREKSI);
-        } elseif ($authUser->isItDeveloper()) {
-            $query->where(function ($q) use ($authUser) {
-                $q->where('status', \App\Models\Ticket::STATUS_READY_FOR_WORK)
-                    ->orWhere(function ($sq) use ($authUser) {
-                        $sq->where('assigned_to', $authUser->id)
-                            ->whereIn('status', [\App\Models\Ticket::STATUS_IN_PROGRESS, \App\Models\Ticket::STATUS_REVISION_WORK]);
-                    });
-            });
-        } else {
-            $query->where('requester_id', $authUser->id)
-                ->whereIn('status', [
-                    \App\Models\Ticket::STATUS_REVISION_REQUESTER,
-                    \App\Models\Ticket::STATUS_REVISION_BY_IT_HEAD,
-                    \App\Models\Ticket::STATUS_WAITING_USER_MINUTES,
-                    \App\Models\Ticket::STATUS_REVISION_MINUTES,
-                    \App\Models\Ticket::STATUS_WAITING_USER_REVIEW,
-                    \App\Models\Ticket::STATUS_REJECTED_SUPERVISOR,
-                    \App\Models\Ticket::STATUS_REJECTED_IT_HEAD,
-                    \App\Models\Ticket::STATUS_REJECTED_KADIV_IT,
-                    \App\Models\Ticket::STATUS_REJECTED_DIREKSI,
-                    \App\Models\Ticket::STATUS_COMPLETED,
-                ]);
-        }
-
-        $notifications = $query->latest('updated_at')->paginate(15);
-
-        return view('notifications.index', compact('notifications'));
-    })->name('notifications.index');
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
+    Route::post('/notifications/{notification}/read', [NotificationController::class, 'read'])->name('notifications.read');
 
     Route::get('/tickets-calendar', [TicketController::class, 'calendar'])->name('tickets.calendar');
     Route::get('/tickets-export', [TicketController::class, 'exportCsv'])->name('tickets.export');
@@ -81,6 +41,9 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/categories', [\App\Http\Controllers\AdminUserController::class, 'storeCategory'])->name('categories.store');
         Route::patch('/categories/{category}', [\App\Http\Controllers\AdminUserController::class, 'updateCategory'])->name('categories.update');
         Route::delete('/categories/{category}', [\App\Http\Controllers\AdminUserController::class, 'destroyCategory'])->name('categories.destroy');
+        Route::get('/delegations', [ApprovalDelegationController::class, 'index'])->name('delegations.index');
+        Route::post('/delegations', [ApprovalDelegationController::class, 'store'])->name('delegations.store');
+        Route::delete('/delegations/{delegation}', [ApprovalDelegationController::class, 'destroy'])->name('delegations.destroy');
     });
 
     // LOA Status Manual Sync

@@ -17,13 +17,13 @@ use Illuminate\View\View;
 class AdminUserController extends Controller
 {
     public const ALLOWED_ROLES = [
-        User::ROLE_REQUESTER    => 'Karyawan / Pemohon (Requester)',
-        User::ROLE_SUPERVISOR   => 'Atasan Langsung (Supervisor)',
-        User::ROLE_IT_HEAD      => 'Kepala Bagian IT (IT Head)',
-        User::ROLE_KADIV_IT     => 'Kepala Divisi IT & Ops (Kadiv IT)',
-        User::ROLE_DIREKSI      => 'Dewan Direksi',
+        User::ROLE_REQUESTER => 'Karyawan / Pemohon (Requester)',
+        User::ROLE_SUPERVISOR => 'Atasan Langsung (Supervisor)',
+        User::ROLE_IT_HEAD => 'Kepala Bagian IT (IT Head)',
+        User::ROLE_KADIV_IT => 'Kepala Divisi IT & Ops (Kadiv IT)',
+        User::ROLE_DIREKSI => 'Dewan Direksi',
         User::ROLE_IT_DEVELOPER => 'Teknisi / IT Developer',
-        User::ROLE_ADMIN        => 'Administrator Sistem',
+        User::ROLE_ADMIN => 'Administrator Sistem',
     ];
 
     public function index(Request $request): View
@@ -34,7 +34,7 @@ class AdminUserController extends Controller
             $search = trim((string) $request->query('search'));
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'LIKE', "%{$search}%")
-                  ->orWhere('email', 'LIKE', "%{$search}%");
+                    ->orWhere('email', 'LIKE', "%{$search}%");
             });
         }
 
@@ -71,7 +71,13 @@ class AdminUserController extends Controller
             'password' => ['required', 'string', 'min:6', 'max:100'],
             'role' => ['required', Rule::in(array_keys(self::ALLOWED_ROLES))],
             'department_id' => ['nullable', 'integer', 'exists:departments,id'],
-            'supervisor_id' => ['nullable', 'integer', 'exists:users,id'],
+            'supervisor_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('users', 'id')->where(fn ($query) => $query
+                    ->where('is_active', true)
+                    ->whereIn('role', [User::ROLE_SUPERVISOR, User::ROLE_IT_HEAD, User::ROLE_KADIV_IT, User::ROLE_DIREKSI])),
+            ],
             'is_active' => ['nullable', 'boolean'],
         ]);
 
@@ -103,7 +109,13 @@ class AdminUserController extends Controller
             'password' => ['nullable', 'string', 'min:6', 'max:100'],
             'role' => ['required', Rule::in(array_keys(self::ALLOWED_ROLES))],
             'department_id' => ['nullable', 'integer', 'exists:departments,id'],
-            'supervisor_id' => ['nullable', 'integer', 'exists:users,id'],
+            'supervisor_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('users', 'id')->where(fn ($query) => $query
+                    ->where('is_active', true)
+                    ->whereIn('role', [User::ROLE_SUPERVISOR, User::ROLE_IT_HEAD, User::ROLE_KADIV_IT, User::ROLE_DIREKSI])),
+            ],
             'is_active' => ['nullable', 'boolean'],
         ]);
 

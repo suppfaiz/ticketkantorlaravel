@@ -205,6 +205,7 @@ Login sebagai administrator, lalu lengkapi melalui menu administrasi:
 3. Pengguna dan role: requester, supervisor, it_head, kadiv_it, direksi, it_developer, dan admin.
 4. Hubungan setiap requester dengan supervisor yang benar.
 5. Status aktif pengguna.
+6. Delegasi approval untuk pejabat yang sedang cuti atau tidak tersedia, jika diperlukan.
 
 Requester tanpa supervisor tidak akan dipasangkan secara otomatis dan tidak dapat mengikuti alur approval dengan benar.
 
@@ -216,6 +217,9 @@ Requester tanpa supervisor tidak akan dipasangkan secara otomatis dan tidak dapa
 - [ ] Source serta `.env` tidak dapat diakses dari web.
 - [ ] Login/logout lokal berhasil.
 - [ ] Seluruh role dan hubungan requester–supervisor sudah benar.
+- [ ] Lonceng mencatat notifikasi baru dan dapat menandainya sebagai dibaca.
+- [ ] Delegasi aktif menerima antrean dan dapat mengambil keputusan atas nama pejabat asal.
+- [ ] Delegasi kedaluwarsa tidak lagi dapat mengambil keputusan.
 - [ ] Tiket Minor berhasil dijalankan sampai selesai.
 - [ ] Tiket Major berhasil dijalankan sampai selesai.
 - [ ] Upload dan download attachment berhasil.

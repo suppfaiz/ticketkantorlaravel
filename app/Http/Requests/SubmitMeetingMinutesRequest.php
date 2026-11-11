@@ -9,11 +9,8 @@ class SubmitMeetingMinutesRequest extends FormRequest
     public function authorize(): bool
     {
         $ticket = $this->route('ticket');
-        return $this->user() !== null && (
-            $ticket->requester_id === $this->user()->id ||
-            $this->user()->isItHead() ||
-            $this->user()->isAdmin()
-        );
+
+        return $ticket && $this->user() && $this->user()->can('manageMeetingMinutes', $ticket);
     }
 
     public function rules(): array

@@ -1,6 +1,11 @@
 @php
     $user = Auth::user();
     $role = $user->role ?? 'requester';
+    $delegationService = app(\App\Services\ApprovalDelegationService::class);
+    $canApproveSupervisor = $user && ($user->isSupervisor() || $user->isAdmin() || $delegationService->delegatedUserIds($user, \App\Models\ApprovalDelegation::SCOPE_SUPERVISOR)->isNotEmpty());
+    $canApproveItHead = $user && ($user->isAdmin() || $delegationService->actsForRole($user, \App\Models\User::ROLE_IT_HEAD, \App\Models\ApprovalDelegation::SCOPE_IT_HEAD));
+    $canApproveKadiv = $user && ($user->isAdmin() || $delegationService->actsForRole($user, \App\Models\User::ROLE_KADIV_IT, \App\Models\ApprovalDelegation::SCOPE_KADIV_IT));
+    $canApproveDireksi = $user && ($user->isAdmin() || $delegationService->actsForRole($user, \App\Models\User::ROLE_DIREKSI, \App\Models\ApprovalDelegation::SCOPE_DIREKSI));
 @endphp
 
 <!-- Mobile Off-Canvas Backdrop -->
@@ -189,13 +194,13 @@
         </div>
 
         <!-- Section: Workflow Peran -->
-        @if($user && ($user->isSupervisor() || $user->isItHead() || $user->isKadivIt() || $user->isDireksi() || $user->isItDeveloper() || $user->isAdmin()))
+        @if($user && ($canApproveSupervisor || $canApproveItHead || $canApproveKadiv || $canApproveDireksi || $user->isItDeveloper()))
             <div class="pt-3 mt-2 border-t border-white/10">
                 <div class="px-3 mb-1" x-show="!$store.sidebar.collapsed || $store.sidebar.mobileOpen" x-transition>
                     <span class="text-xs font-bold uppercase tracking-wider text-blue-200/80">OTORISASI & WORKFLOW</span>
                 </div>
 
-                @if($user->isSupervisor() || $user->isAdmin())
+                @if($canApproveSupervisor)
                     <a
                         href="{{ route('tickets.index', ['status' => \App\Models\Ticket::STATUS_WAITING_SUPERVISOR]) }}"
                         class="flex items-center gap-3 px-3 py-2 rounded-xl transition-all group {{ request('status') === \App\Models\Ticket::STATUS_WAITING_SUPERVISOR ? 'bg-white/20 text-white font-bold shadow-xs ring-1 ring-white/20' : 'text-blue-100 hover:text-white hover:bg-white/10 font-medium' }}"
@@ -216,7 +221,7 @@
                     </a>
                 @endif
 
-                @if($user->isItHead() || $user->isAdmin())
+                @if($canApproveItHead)
                     <a
                         href="{{ route('tickets.index', ['status' => \App\Models\Ticket::STATUS_WAITING_IT_HEAD]) }}"
                         class="flex items-center gap-3 px-3 py-2 rounded-xl transition-all group {{ request('status') === \App\Models\Ticket::STATUS_WAITING_IT_HEAD ? 'bg-white/20 text-white font-bold shadow-xs ring-1 ring-white/20' : 'text-blue-100 hover:text-white hover:bg-white/10 font-medium' }}"
@@ -237,9 +242,9 @@
                     </a>
                 @endif
 
-                @if($user->isKadivIt() || $user->isDireksi() || $user->isAdmin())
+                @if($canApproveKadiv || $canApproveDireksi)
                     <a
-                        href="{{ route('tickets.index', ['status' => $user->isDireksi() ? \App\Models\Ticket::STATUS_WAITING_LOA_DIREKSI : \App\Models\Ticket::STATUS_WAITING_LOA_KADIV_IT]) }}"
+                        href="{{ route('tickets.index', ['status' => $canApproveDireksi && !$canApproveKadiv ? \App\Models\Ticket::STATUS_WAITING_LOA_DIREKSI : \App\Models\Ticket::STATUS_WAITING_LOA_KADIV_IT]) }}"
                         class="flex items-center gap-3 px-3 py-2 rounded-xl transition-all group {{ in_array(request('status'), [\App\Models\Ticket::STATUS_WAITING_LOA_KADIV_IT, \App\Models\Ticket::STATUS_WAITING_LOA_DIREKSI]) ? 'bg-white/20 text-white font-bold shadow-xs ring-1 ring-white/20' : 'text-blue-100 hover:text-white hover:bg-white/10 font-medium' }}"
                         :class="{
                             'lg:justify-center lg:px-0': $store.sidebar.collapsed,
@@ -290,7 +295,7 @@
 
                 <a
                     href="{{ route('admin.users.index') }}"
-                    class="flex items-center gap-3 px-3 py-2 rounded-xl transition-all group {{ request()->routeIs('admin.*') ? 'bg-white/20 text-white font-bold shadow-xs ring-1 ring-white/20' : 'text-blue-100 hover:text-white hover:bg-white/10 font-medium' }}"
+                    class="flex items-center gap-3 px-3 py-2 rounded-xl transition-all group {{ request()->routeIs('admin.users.*') ? 'bg-white/20 text-white font-bold shadow-xs ring-1 ring-white/20' : 'text-blue-100 hover:text-white hover:bg-white/10 font-medium' }}"
                     :class="{
                         'lg:justify-center lg:px-0': $store.sidebar.collapsed,
                         'gap-3 px-3': !$store.sidebar.collapsed
@@ -304,6 +309,25 @@
                     </div>
                     <span class="whitespace-nowrap transition-opacity duration-200" x-show="!$store.sidebar.collapsed || $store.sidebar.mobileOpen" x-transition>
                         Kelola Pengguna &amp; Divisi
+                    </span>
+                </a>
+
+                <a
+                    href="{{ route('admin.delegations.index') }}"
+                    class="flex items-center gap-3 px-3 py-2 rounded-xl transition-all group {{ request()->routeIs('admin.delegations.*') ? 'bg-white/20 text-white font-bold shadow-xs ring-1 ring-white/20' : 'text-blue-100 hover:text-white hover:bg-white/10 font-medium' }}"
+                    :class="{
+                        'lg:justify-center lg:px-0': $store.sidebar.collapsed,
+                        'gap-3 px-3': !$store.sidebar.collapsed
+                    }"
+                    :title="$store.sidebar.collapsed ? 'Delegasi Approval' : ''"
+                >
+                    <div class="w-7 h-7 rounded-lg bg-white/15 text-amber-200 flex items-center justify-center shrink-0 group-hover:bg-white group-hover:text-[#1E3A8A] transition-all">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4M16 17H4m0 0l4 4m-4-4l4-4" />
+                        </svg>
+                    </div>
+                    <span class="whitespace-nowrap transition-opacity duration-200" x-show="!$store.sidebar.collapsed || $store.sidebar.mobileOpen" x-transition>
+                        Delegasi Approval
                     </span>
                 </a>
             </div>

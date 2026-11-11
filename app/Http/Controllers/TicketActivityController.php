@@ -6,13 +6,16 @@ use App\Http\Requests\CompleteWorkRequest;
 use App\Http\Requests\StoreActivityLogRequest;
 use App\Models\Ticket;
 use App\Models\TicketActivityLog;
+use App\Models\TicketAttachment;
 use App\Services\AuditTrailService;
+use App\Services\TicketNotificationService;
 use App\Services\TicketStateMachine;
 use Illuminate\Http\RedirectResponse;
 
 class TicketActivityController extends Controller
 {
     protected TicketStateMachine $stateMachine;
+
     protected AuditTrailService $auditTrailService;
 
     public function __construct(TicketStateMachine $stateMachine, AuditTrailService $auditTrailService)
@@ -27,8 +30,8 @@ class TicketActivityController extends Controller
 
         if ($request->hasFile('attachment')) {
             $file = $request->file('attachment');
-            $storedPath = $file->store('tickets/' . $ticket->id, 'local');
-            \App\Models\TicketAttachment::create([
+            $storedPath = $file->store('tickets/'.$ticket->id, 'local');
+            TicketAttachment::create([
                 'ticket_id' => $ticket->id,
                 'uploader_id' => $request->user()->id,
                 'file_name' => $file->getClientOriginalName(),
@@ -37,7 +40,7 @@ class TicketActivityController extends Controller
                 'mime_type' => $file->getClientMimeType(),
                 'created_at' => now(),
             ]);
-            $content .= "\n[Lampiran Progres: " . $file->getClientOriginalName() . ']';
+            $content .= "\n[Lampiran Progres: ".$file->getClientOriginalName().']';
         }
 
         TicketActivityLog::create([
@@ -57,6 +60,15 @@ class TicketActivityController extends Controller
             remarks: 'Menambahkan catatan perkembangan teknis.'
         );
 
+        app(TicketNotificationService::class)->notifyUsers(
+            ticket: $ticket,
+            recipients: [$ticket->requester],
+            event: 'progress_added',
+            title: 'Progres tiket diperbarui',
+            message: 'Tim IT menambahkan catatan perkembangan teknis.',
+            actor: $request->user(),
+        );
+
         return redirect()->route('tickets.show', $ticket)
             ->with('success', 'Catatan aktivitas teknis berhasil ditambahkan.');
     }
@@ -70,8 +82,8 @@ class TicketActivityController extends Controller
 
         if ($request->hasFile('attachment')) {
             $file = $request->file('attachment');
-            $storedPath = $file->store('tickets/' . $ticket->id, 'local');
-            \App\Models\TicketAttachment::create([
+            $storedPath = $file->store('tickets/'.$ticket->id, 'local');
+            TicketAttachment::create([
                 'ticket_id' => $ticket->id,
                 'uploader_id' => $request->user()->id,
                 'file_name' => $file->getClientOriginalName(),
@@ -80,7 +92,7 @@ class TicketActivityController extends Controller
                 'mime_type' => $file->getClientMimeType(),
                 'created_at' => now(),
             ]);
-            $completionNotes .= "\n[Bukti Penyelesaian: " . $file->getClientOriginalName() . ']';
+            $completionNotes .= "\n[Bukti Penyelesaian: ".$file->getClientOriginalName().']';
         }
 
         // Record work completion activity log

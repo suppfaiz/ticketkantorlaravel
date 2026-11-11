@@ -1,49 +1,7 @@
 @php
     $authUser = Auth::user();
-    $notifications = collect();
-    if ($authUser) {
-        if ($authUser->isSupervisor()) {
-            $notifications = \App\Models\Ticket::where('supervisor_id', $authUser->id)
-                ->where('status', \App\Models\Ticket::STATUS_WAITING_SUPERVISOR)
-                ->latest('updated_at')->get();
-        } elseif ($authUser->isItHead() || $authUser->isAdmin()) {
-            $notifications = \App\Models\Ticket::whereIn('status', [
-                \App\Models\Ticket::STATUS_WAITING_IT_HEAD,
-                \App\Models\Ticket::STATUS_WAITING_MAJOR_MEETING,
-                \App\Models\Ticket::STATUS_WAITING_MINUTES_APPROVAL,
-            ])->latest('updated_at')->get();
-        } elseif ($authUser->isKadivIt()) {
-            $notifications = \App\Models\Ticket::where('status', \App\Models\Ticket::STATUS_WAITING_LOA_KADIV_IT)
-                ->latest('updated_at')->get();
-        } elseif ($authUser->isDireksi()) {
-            $notifications = \App\Models\Ticket::where('status', \App\Models\Ticket::STATUS_WAITING_LOA_DIREKSI)
-                ->latest('updated_at')->get();
-        } elseif ($authUser->isItDeveloper()) {
-            $notifications = \App\Models\Ticket::where(function($q) use ($authUser) {
-                $q->where('status', \App\Models\Ticket::STATUS_READY_FOR_WORK)
-                  ->orWhere(function($sq) use ($authUser) {
-                      $sq->where('assigned_to', $authUser->id)
-                         ->whereIn('status', [\App\Models\Ticket::STATUS_IN_PROGRESS, \App\Models\Ticket::STATUS_REVISION_WORK]);
-                  });
-            })->latest('updated_at')->get();
-        } else {
-            // Requester
-            $notifications = \App\Models\Ticket::where('requester_id', $authUser->id)
-                ->whereIn('status', [
-                    \App\Models\Ticket::STATUS_REVISION_REQUESTER,
-                    \App\Models\Ticket::STATUS_REVISION_BY_IT_HEAD,
-                    \App\Models\Ticket::STATUS_WAITING_USER_MINUTES,
-                    \App\Models\Ticket::STATUS_REVISION_MINUTES,
-                    \App\Models\Ticket::STATUS_WAITING_USER_REVIEW,
-                    \App\Models\Ticket::STATUS_REJECTED_SUPERVISOR,
-                    \App\Models\Ticket::STATUS_REJECTED_IT_HEAD,
-                    \App\Models\Ticket::STATUS_REJECTED_KADIV_IT,
-                    \App\Models\Ticket::STATUS_REJECTED_DIREKSI,
-                    \App\Models\Ticket::STATUS_COMPLETED,
-                ])->latest('updated_at')->get();
-        }
-    }
-    $notifCount = $notifications->count();
+    $notifications = $authUser?->unreadNotifications()->latest()->limit(5)->get() ?? collect();
+    $notifCount = $authUser?->unreadNotifications()->count() ?? 0;
 @endphp
 
 <header
@@ -110,18 +68,21 @@
                 </div>
 
                 <div class="divide-y divide-slate-100 max-h-72 overflow-y-auto custom-scrollbar">
-                    @forelse($notifications->take(5) as $item)
-                        <a href="{{ route('tickets.show', $item) }}" class="block px-4 py-2.5 hover:bg-slate-50 transition-colors">
-                            <div class="flex items-center justify-between gap-3">
-                                <span class="text-xs font-medium text-slate-900 truncate">
-                                    {{ $item->title }}
+                    @forelse($notifications as $item)
+                        <form method="POST" action="{{ route('notifications.read', $item) }}">
+                            @csrf
+                            <button type="submit" class="block w-full px-4 py-2.5 text-left hover:bg-slate-50 transition-colors">
+                                <span class="flex items-center justify-between gap-3">
+                                    <span class="text-xs font-medium text-slate-900 truncate">
+                                        {{ $item->data['title'] ?? 'Pembaruan tiket' }}
+                                    </span>
+                                    <span class="text-[11px] text-slate-400 tabular-nums shrink-0">{{ $item->created_at->diffForHumans() }}</span>
                                 </span>
-                                <span class="text-[11px] text-slate-400 tabular-nums shrink-0">{{ $item->updated_at->diffForHumans() }}</span>
-                            </div>
-                            <div class="mt-0.5 text-[11px] text-slate-500 truncate tabular-nums">
-                                {{ $item->ticket_number }} &bull; {{ $item->status }}
-                            </div>
-                        </a>
+                                <span class="mt-0.5 block text-[11px] text-slate-500 truncate tabular-nums">
+                                    {{ $item->data['ticket_number'] ?? '-' }} &bull; {{ $item->data['message'] ?? '' }}
+                                </span>
+                            </button>
+                        </form>
                     @empty
                         <div class="py-6 px-4 text-center">
                             <p class="text-xs font-medium text-slate-600">Tidak ada notifikasi baru</p>

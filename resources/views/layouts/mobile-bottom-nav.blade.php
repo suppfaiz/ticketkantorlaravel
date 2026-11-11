@@ -1,54 +1,21 @@
 @php
     $authUser = Auth::user();
-    $notifCount = 0;
-    if ($authUser) {
-        if ($authUser->isSupervisor()) {
-            $notifCount = \App\Models\Ticket::where('supervisor_id', $authUser->id)
-                ->where('status', \App\Models\Ticket::STATUS_WAITING_SUPERVISOR)
-                ->count();
-        } elseif ($authUser->isItHead()) {
-            $notifCount = \App\Models\Ticket::whereIn('status', [
-                \App\Models\Ticket::STATUS_WAITING_IT_HEAD,
-                \App\Models\Ticket::STATUS_WAITING_MAJOR_MEETING,
-                \App\Models\Ticket::STATUS_WAITING_MINUTES_APPROVAL,
-            ])->count();
-        } elseif ($authUser->isKadivIt()) {
-            $notifCount = \App\Models\Ticket::where('status', \App\Models\Ticket::STATUS_WAITING_LOA_KADIV_IT)->count();
-        } elseif ($authUser->isDireksi()) {
-            $notifCount = \App\Models\Ticket::where('status', \App\Models\Ticket::STATUS_WAITING_LOA_DIREKSI)->count();
-        } elseif ($authUser->isItDeveloper()) {
-            $notifCount = \App\Models\Ticket::where(function ($q) use ($authUser) {
-                $q->where('status', \App\Models\Ticket::STATUS_READY_FOR_WORK)
-                    ->orWhere(function ($sq) use ($authUser) {
-                        $sq->where('assigned_to', $authUser->id)
-                            ->whereIn('status', [\App\Models\Ticket::STATUS_IN_PROGRESS, \App\Models\Ticket::STATUS_REVISION_WORK]);
-                    });
-            })->count();
-        } else {
-            $notifCount = \App\Models\Ticket::where('requester_id', $authUser->id)
-                ->whereIn('status', [
-                    \App\Models\Ticket::STATUS_REVISION_REQUESTER,
-                    \App\Models\Ticket::STATUS_REVISION_BY_IT_HEAD,
-                    \App\Models\Ticket::STATUS_WAITING_USER_MINUTES,
-                    \App\Models\Ticket::STATUS_REVISION_MINUTES,
-                    \App\Models\Ticket::STATUS_WAITING_USER_REVIEW,
-                ])->count();
-        }
-    }
+    $notifCount = $authUser?->unreadNotifications()->count() ?? 0;
+    $delegationService = app(\App\Services\ApprovalDelegationService::class);
 
     $queueStatus = null;
     $queueLabel = 'Antrean';
     if ($authUser) {
-        if ($authUser->isSupervisor()) {
+        if ($authUser->isSupervisor() || $delegationService->delegatedUserIds($authUser, \App\Models\ApprovalDelegation::SCOPE_SUPERVISOR)->isNotEmpty()) {
             $queueStatus = \App\Models\Ticket::STATUS_WAITING_SUPERVISOR;
             $queueLabel = 'Otorisasi';
-        } elseif ($authUser->isItHead()) {
+        } elseif ($delegationService->actsForRole($authUser, \App\Models\User::ROLE_IT_HEAD, \App\Models\ApprovalDelegation::SCOPE_IT_HEAD)) {
             $queueStatus = \App\Models\Ticket::STATUS_WAITING_IT_HEAD;
             $queueLabel = 'Klasifikasi';
-        } elseif ($authUser->isKadivIt()) {
+        } elseif ($delegationService->actsForRole($authUser, \App\Models\User::ROLE_KADIV_IT, \App\Models\ApprovalDelegation::SCOPE_KADIV_IT)) {
             $queueStatus = \App\Models\Ticket::STATUS_WAITING_LOA_KADIV_IT;
             $queueLabel = 'LOA Kadiv';
-        } elseif ($authUser->isDireksi()) {
+        } elseif ($delegationService->actsForRole($authUser, \App\Models\User::ROLE_DIREKSI, \App\Models\ApprovalDelegation::SCOPE_DIREKSI)) {
             $queueStatus = \App\Models\Ticket::STATUS_WAITING_LOA_DIREKSI;
             $queueLabel = 'LOA Direksi';
         } elseif ($authUser->isItDeveloper()) {
