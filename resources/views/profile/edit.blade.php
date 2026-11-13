@@ -49,7 +49,7 @@
                 </div>
                 <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/70">
                     <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Divisi / Departemen</div>
-                    <div class="mt-1 text-xs sm:text-sm font-bold text-slate-900">{{ $currentUser->department?->name ?? 'Belum Ditentukan' }}</div>
+                    <div class="mt-1 text-xs sm:text-sm font-bold text-slate-900">{{ $currentUser->departmentRecord?->name ?? $currentUser->department ?? 'Belum Ditentukan' }}</div>
                 </div>
                 <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/70">
                     <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Atasan Peninjau (LOA)</div>

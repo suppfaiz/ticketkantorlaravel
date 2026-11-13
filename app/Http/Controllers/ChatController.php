@@ -80,7 +80,7 @@ class ChatController extends Controller
             ->groupBy('sender_id')
             ->pluck('aggregate', 'sender_id');
 
-        $contacts = User::with('department:id,name')
+        $contacts = User::with('departmentRecord:id,name')
             ->where('id', '!=', $user->id)
             ->orderBy('name')
             ->get(['id', 'name', 'role', 'department_id'])
@@ -88,7 +88,7 @@ class ChatController extends Controller
                 'id' => $u->id,
                 'name' => $u->name,
                 'role' => $this->translateRole($u->role),
-                'department' => $u->department?->name ?? '-',
+                'department' => $u->departmentRecord?->name ?? $u->department ?? '-',
                 'unread_count' => (int) ($unreadBySender[$u->id] ?? 0),
             ]);
 

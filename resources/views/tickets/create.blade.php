@@ -126,7 +126,7 @@
                         </div>
                         <div class="min-w-0 flex-1">
                             <div class="font-semibold text-slate-900 text-sm truncate">{{ $supervisor->name }}</div>
-                            <div class="text-slate-500 text-xs truncate">{{ $supervisor->department?->name ?? ($supervisor->department ?? 'Divisi Operasional & Umum') }}</div>
+                            <div class="text-slate-500 text-xs truncate">{{ $supervisor->departmentRecord?->name ?? ($supervisor->department ?? 'Divisi Operasional & Umum') }}</div>
                         </div>
                     </div>
                 @else

@@ -45,7 +45,7 @@
                 <div>
                     <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Poin Kesepakatan &amp; Ruang Lingkup (Notulensi)</div>
                     <div class="p-4 bg-slate-50 rounded-xl border border-slate-200/80 text-slate-800 rich-text-content max-w-none leading-relaxed">
-                        {!! strip_tags($ticket->meetingMinutes->notes ?? '<p class="text-slate-400 italic">Menunggu input notulensi hasil rapat dari pemohon.</p>', '<p><br><div><strong><b><em><i><u><s><strike><del><ul><ol><li><h1><h2><h3><h4><h5><h6><a><blockquote><code><pre><hr><table><thead><tbody><tr><th><td><span>') !!}
+                        {!! \App\Support\SafeMinutesHtml::render($ticket->meetingMinutes->notes ?? '<p>Menunggu input notulensi hasil rapat dari pemohon.</p>') !!}
                     </div>
                 </div>
 

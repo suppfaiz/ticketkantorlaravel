@@ -1,7 +1,17 @@
+@php
+    $developerQueue = $developerQueue ?? null;
+    $developerQueueTitles = [
+        'unassigned' => 'Tiket Belum Di-assign',
+        'active' => 'Tiket Sedang Saya Kerjakan',
+        'completed' => 'Tiket Selesai Dikerjakan',
+    ];
+@endphp
+
 <x-app-layout>
     <x-slot name="header">
         <div class="flex items-center justify-between gap-3 py-1">
-            <h1 class="text-base sm:text-xl font-bold text-slate-900 tracking-tight truncate">Daftar Tiket IT</h1>
+            <h1 class="text-base sm:text-xl font-bold text-slate-900 tracking-tight truncate">{{ $developerQueueTitles[$developerQueue] ?? 'Daftar Tiket IT' }}</h1>
+            <a href="{{ route('tickets.export', request()->query()) }}" class="sm:hidden btn-secondary px-2.5 py-1.5 text-xs font-semibold shrink-0" aria-label="Unduh laporan CSV sesuai filter aktif">Unduh CSV</a>
             <div class="hidden sm:flex items-center gap-2 shrink-0">
                 <a
                     href="{{ route('tickets.export', request()->query()) }}"
@@ -38,6 +48,9 @@
     <div class="mb-4 sm:mb-5">
         <div class="bg-white rounded-2xl sm:rounded-xl border border-slate-200/90 sm:border-slate-200 p-2.5 sm:p-3.5 shadow-[0_2px_12px_rgba(15,23,42,0.04)] sm:shadow-2xs">
             <form method="GET" action="{{ route('tickets.index') }}" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-2.5">
+                @if($developerQueue)
+                    <input type="hidden" name="developer_queue" value="{{ $developerQueue }}">
+                @endif
                 <div class="flex items-center gap-2 sm:flex-1">
                     <div class="relative flex-1">
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -152,7 +165,7 @@
                         Cari
                     </button>
                     @if(request()->filled('search') || request()->filled('status') || request()->filled('category') || request()->filled('priority') || request()->filled('overdue') || request()->filled('date_from') || request()->filled('date_to') || (request()->filled('per_page') && (int) request('per_page') !== 10))
-                        <a href="{{ route('tickets.index') }}" class="btn-secondary text-xs py-2 px-3">
+                        <a href="{{ route('tickets.index', $developerQueue ? ['developer_queue' => $developerQueue] : []) }}" class="btn-secondary text-xs py-2 px-3">
                             Reset
                         </a>
                     @endif
@@ -163,14 +176,14 @@
         <!-- Mobile Native Horizontal Filter Chips (Handphone Only, Hidden on sm: Desktop) -->
         <div class="sm:hidden flex items-center gap-2 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] pt-2.5 pb-0.5">
             <a
-                href="{{ route('tickets.index', array_filter(['search' => request('search')])) }}"
+                href="{{ route('tickets.index', array_filter(['developer_queue' => $developerQueue, 'search' => request('search')])) }}"
                 class="px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 transition-all {{ !request()->filled('status') ? 'bg-[#1E40AF] text-white shadow-sm shadow-blue-900/25' : 'bg-white text-slate-600 border border-slate-200/90' }}"
             >
-                Semua Tiket
+                {{ $developerQueue ? 'Semua Status' : 'Semua Tiket' }}
             </a>
             @foreach($statusOptions as $value => $label)
                 <a
-                    href="{{ route('tickets.index', array_filter(['status' => $value, 'search' => request('search')])) }}"
+                    href="{{ route('tickets.index', array_filter(['developer_queue' => $developerQueue, 'status' => $value, 'search' => request('search')])) }}"
                     class="px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 transition-all {{ request('status') === $value ? 'bg-[#1E40AF] text-white shadow-sm shadow-blue-900/25' : 'bg-white text-slate-600 border border-slate-200/90' }}"
                 >
                     {{ $label }}
@@ -180,7 +193,7 @@
     </div>
 
     <!-- Ticket List (Mobile Native Cards) & Table (Desktop Card Model) -->
-    <div data-ajax-poll="tickets-list" class="sm:bg-white sm:rounded-2xl sm:border sm:border-slate-100 sm:shadow-sm sm:overflow-hidden">
+    <div data-ajax-poll="tickets-list" class="lg:bg-white lg:rounded-2xl lg:border lg:border-slate-100 lg:shadow-sm lg:overflow-hidden">
         @if($tickets->isEmpty())
             <div class="bg-white rounded-2xl border border-slate-200/80 sm:border-0 py-16 text-center px-4">
                 <div class="w-12 h-12 rounded-full bg-slate-100 text-slate-400 mx-auto flex items-center justify-center mb-3">
@@ -188,8 +201,8 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                 </div>
-                <h3 class="text-sm font-semibold text-slate-900">Tidak ada tiket ditemukan</h3>
-                <p class="text-xs text-slate-500 mt-1 max-w-sm mx-auto">Belum ada tiket yang cocok dengan kriteria pencarian atau status filter Anda.</p>
+                <h3 class="text-sm font-semibold text-slate-900">{{ $developerQueue ? 'Belum ada tiket di antrean ini' : 'Tidak ada tiket ditemukan' }}</h3>
+                <p class="text-xs text-slate-500 mt-1 max-w-sm mx-auto">{{ $developerQueue ? 'Tiket akan tampil di sini ketika status dan penugasannya sesuai.' : 'Belum ada tiket yang cocok dengan kriteria pencarian atau status filter Anda.' }}</p>
                 @can('create', App\Models\Ticket::class)
                     <div class="mt-4">
                         <a href="{{ route('tickets.create') }}" class="btn-primary text-xs">
@@ -200,14 +213,14 @@
             </div>
         @else
             <!-- Mobile Native Separated Cards View (Handphone Only, Hidden on sm: Desktop) -->
-            <div class="sm:hidden space-y-2.5">
+            <div class="lg:hidden space-y-2.5">
                 @foreach($tickets as $ticket)
-                    <x-mobile-ticket-card :ticket="$ticket" />
+                    <x-mobile-ticket-card :ticket="$ticket" :showSelfAssign="$developerQueue === 'unassigned'" />
                 @endforeach
             </div>
 
             <!-- Desktop Table View (Hidden on Mobile, Identical on sm: and up) -->
-            <div class="hidden sm:block overflow-x-auto">
+            <div class="hidden lg:block overflow-x-auto">
                 <table class="min-w-full divide-y divide-slate-100">
                     <thead class="bg-[#1E40AF]">
                         <tr>
@@ -240,7 +253,7 @@
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-800">
                                     <div class="font-medium text-slate-900">{{ $ticket->requester->name }}</div>
-                                    <div class="text-xs text-slate-500">{{ $ticket->requester->department?->name ?? 'Tanpa Departemen' }}</div>
+                                    <div class="text-xs text-slate-500">{{ $ticket->requester->departmentRecord?->name ?? $ticket->requester->department ?? 'Tanpa Departemen' }}</div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm">
                                     <x-ticket-priority-badge :priority="$ticket->priority" />
@@ -270,6 +283,14 @@
                                     @endif
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-xs font-medium space-x-2">
+                                    @if($developerQueue === 'unassigned')
+                                        @can('selfAssign', $ticket)
+                                            <form action="{{ route('tickets.self-assign', $ticket) }}" method="POST" class="inline">
+                                                @csrf
+                                                <button type="submit" class="font-semibold text-emerald-700 hover:text-emerald-900">Ambil Tiket</button>
+                                            </form>
+                                        @endcan
+                                    @endif
                                     <a href="{{ route('tickets.show', $ticket) }}" class="text-blue-600 hover:text-blue-800 font-semibold hover:underline">
                                         Lihat
                                     </a>

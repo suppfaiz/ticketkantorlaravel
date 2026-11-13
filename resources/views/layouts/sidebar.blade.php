@@ -6,6 +6,21 @@
     $canApproveItHead = $user && ($user->isAdmin() || $delegationService->actsForRole($user, \App\Models\User::ROLE_IT_HEAD, \App\Models\ApprovalDelegation::SCOPE_IT_HEAD));
     $canApproveKadiv = $user && ($user->isAdmin() || $delegationService->actsForRole($user, \App\Models\User::ROLE_KADIV_IT, \App\Models\ApprovalDelegation::SCOPE_KADIV_IT));
     $canApproveDireksi = $user && ($user->isAdmin() || $delegationService->actsForRole($user, \App\Models\User::ROLE_DIREKSI, \App\Models\ApprovalDelegation::SCOPE_DIREKSI));
+    $isTicketIndex = request()->routeIs('tickets.index');
+    $developerQueueItems = [
+        'active' => 'Sedang Saya Kerjakan',
+        'unassigned' => 'Belum Di-assign',
+        'completed' => 'Selesai Dikerjakan',
+    ];
+    $requestedDeveloperQueue = request('developer_queue');
+    $activeDeveloperQueue = $isTicketIndex && $user?->isItDeveloper() && is_string($requestedDeveloperQueue) && array_key_exists($requestedDeveloperQueue, $developerQueueItems)
+        ? $requestedDeveloperQueue
+        : null;
+    $isPoolMenuActive = $isTicketIndex && $user?->isAdmin() && request('status') === \App\Models\Ticket::STATUS_READY_FOR_WORK;
+    $isSupervisorMenuActive = $isTicketIndex && $canApproveSupervisor && request('status') === \App\Models\Ticket::STATUS_WAITING_SUPERVISOR;
+    $isItHeadMenuActive = $isTicketIndex && $canApproveItHead && request('status') === \App\Models\Ticket::STATUS_WAITING_IT_HEAD;
+    $isExecutiveMenuActive = $isTicketIndex && ($canApproveKadiv || $canApproveDireksi) && in_array(request('status'), [\App\Models\Ticket::STATUS_WAITING_LOA_KADIV_IT, \App\Models\Ticket::STATUS_WAITING_LOA_DIREKSI], true);
+    $isGeneralTicketMenuActive = $isTicketIndex && ! ($activeDeveloperQueue || $isPoolMenuActive || $isSupervisorMenuActive || $isItHeadMenuActive || $isExecutiveMenuActive);
 @endphp
 
 <!-- Mobile Off-Canvas Backdrop -->
@@ -100,9 +115,9 @@
             'px-3': !$store.sidebar.collapsed
         }"
     >
-        <!-- Section: Dashboards -->
+        <!-- Section: Menu Utama -->
         <div class="px-3 mb-1" x-show="!$store.sidebar.collapsed || $store.sidebar.mobileOpen" x-transition>
-            <span class="text-xs font-bold uppercase tracking-wider text-blue-200/80">DASHBOARDS</span>
+            <span class="text-xs font-bold uppercase tracking-wider text-blue-200/80">MENU UTAMA</span>
         </div>
 
         <a
@@ -124,29 +139,82 @@
             </span>
         </a>
 
+        @if($user && $user->isRequester())
+            @include('layouts.partials.sidebar-create-ticket-link')
+        @endif
+
         <!-- Section: Sistem Tiket -->
         <div class="pt-3 mt-2 border-t border-white/10">
             <div class="px-3 mb-1" x-show="!$store.sidebar.collapsed || $store.sidebar.mobileOpen" x-transition>
                 <span class="text-xs font-bold uppercase tracking-wider text-blue-200/80">TIKET & LAYANAN</span>
             </div>
 
+            @if($user?->isItDeveloper())
+                @foreach($developerQueueItems as $queue => $label)
+                    @php $isActiveDeveloperQueue = $activeDeveloperQueue === $queue; @endphp
+                    <a
+                        href="{{ route('tickets.index', ['developer_queue' => $queue]) }}"
+                        class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {{ $isActiveDeveloperQueue ? 'bg-white/20 text-white font-bold shadow-xs ring-1 ring-white/20' : 'text-blue-100 hover:text-white hover:bg-white/10 font-medium' }}"
+                        :class="{
+                            'lg:justify-center lg:px-0': $store.sidebar.collapsed,
+                            'gap-3 px-3': !$store.sidebar.collapsed
+                        }"
+                        :title="$store.sidebar.collapsed ? '{{ $label }}' : ''"
+                    >
+                        <div class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-all {{ $isActiveDeveloperQueue ? 'bg-[#2DCE89] text-white' : 'bg-white/15 text-emerald-300 group-hover:bg-[#2DCE89] group-hover:text-white' }}">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                @if($queue === 'active')
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6l4 2M12 3a9 9 0 110 18 9 9 0 010-18z" />
+                                @elseif($queue === 'unassigned')
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                                @else
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                @endif
+                            </svg>
+                        </div>
+                        <span class="whitespace-nowrap transition-opacity duration-200" x-show="!$store.sidebar.collapsed || $store.sidebar.mobileOpen" x-transition>
+                            {{ $label }}
+                        </span>
+                    </a>
+                @endforeach
+            @elseif($user?->isAdmin())
+                <a
+                    href="{{ route('tickets.index', ['status' => \App\Models\Ticket::STATUS_READY_FOR_WORK]) }}"
+                    class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {{ $isPoolMenuActive ? 'bg-white/20 text-white font-bold shadow-xs ring-1 ring-white/20' : 'text-blue-100 hover:text-white hover:bg-white/10 font-medium' }}"
+                    :class="{
+                        'lg:justify-center lg:px-0': $store.sidebar.collapsed,
+                        'gap-3 px-3': !$store.sidebar.collapsed
+                    }"
+                    :title="$store.sidebar.collapsed ? 'Pool Tiket Siap Dikerjakan' : ''"
+                >
+                    <div class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-all {{ $isPoolMenuActive ? 'bg-[#2DCE89] text-white' : 'bg-white/15 text-emerald-300 group-hover:bg-[#2DCE89] group-hover:text-white' }}">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                        </svg>
+                    </div>
+                    <span class="whitespace-nowrap transition-opacity duration-200" x-show="!$store.sidebar.collapsed || $store.sidebar.mobileOpen" x-transition>
+                        Pool Tiket Siap Dikerjakan
+                    </span>
+                </a>
+            @endif
+
             <!-- Daftar Tiket -->
             <a
                 href="{{ route('tickets.index') }}"
-                class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group relative {{ request()->routeIs('tickets.index') && !request()->has('status') ? 'bg-white/20 text-white font-bold shadow-xs backdrop-blur-xs ring-1 ring-white/20' : 'text-blue-100 hover:text-white hover:bg-white/10 font-medium' }}"
+                class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group relative {{ $isGeneralTicketMenuActive ? 'bg-white/20 text-white font-bold shadow-xs backdrop-blur-xs ring-1 ring-white/20' : 'text-blue-100 hover:text-white hover:bg-white/10 font-medium' }}"
                 :class="{
                     'lg:justify-center lg:px-0': $store.sidebar.collapsed,
                     'gap-3 px-3': !$store.sidebar.collapsed
                 }"
-                :title="$store.sidebar.collapsed ? 'Daftar Semua Tiket' : ''"
+                :title="$store.sidebar.collapsed ? 'Daftar Tiket' : ''"
             >
-                <div class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-all {{ request()->routeIs('tickets.index') && !request()->has('status') ? 'bg-[#F5365C] text-white shadow-xs' : 'bg-white/15 text-rose-300 group-hover:bg-[#F5365C] group-hover:text-white' }}">
+                <div class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-all {{ $isGeneralTicketMenuActive ? 'bg-[#F5365C] text-white shadow-xs' : 'bg-white/15 text-rose-300 group-hover:bg-[#F5365C] group-hover:text-white' }}">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 010 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 010-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375z" />
                     </svg>
                 </div>
                 <span class="whitespace-nowrap transition-opacity duration-200" x-show="!$store.sidebar.collapsed || $store.sidebar.mobileOpen" x-transition>
-                    Daftar Semua Tiket
+                    Daftar Tiket
                 </span>
             </a>
 
@@ -170,31 +238,14 @@
                 </span>
             </a>
 
-            <!-- Buat Tiket (Requester, Supervisor & Admin) -->
-            @if($user && ($user->isRequester() || $user->isSupervisor() || $user->isAdmin()))
-                <a
-                    href="{{ route('tickets.create') }}"
-                    class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group relative {{ request()->routeIs('tickets.create') ? 'bg-white/20 text-white font-bold shadow-xs backdrop-blur-xs ring-1 ring-white/20' : 'text-blue-100 hover:text-white hover:bg-white/10 font-medium' }}"
-                    :class="{
-                        'lg:justify-center lg:px-0': $store.sidebar.collapsed,
-                        'gap-3 px-3': !$store.sidebar.collapsed
-                    }"
-                    :title="$store.sidebar.collapsed ? 'Buat Tiket Baru' : ''"
-                >
-                    <div class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-all {{ request()->routeIs('tickets.create') ? 'bg-[#11CDEF] text-white shadow-xs' : 'bg-white/15 text-cyan-300 group-hover:bg-[#11CDEF] group-hover:text-white' }}">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                        </svg>
-                    </div>
-                    <span class="whitespace-nowrap transition-opacity duration-200" x-show="!$store.sidebar.collapsed || $store.sidebar.mobileOpen" x-transition>
-                        Buat Tiket Baru
-                    </span>
-                </a>
+            <!-- Supervisor dan admin tetap melihat aksi ini setelah daftar tiket. -->
+            @if($user && ($user->isSupervisor() || $user->isAdmin()))
+                @include('layouts.partials.sidebar-create-ticket-link')
             @endif
         </div>
 
         <!-- Section: Workflow Peran -->
-        @if($user && ($canApproveSupervisor || $canApproveItHead || $canApproveKadiv || $canApproveDireksi || $user->isItDeveloper()))
+        @if($user && ($canApproveSupervisor || $canApproveItHead || $canApproveKadiv || $canApproveDireksi))
             <div class="pt-3 mt-2 border-t border-white/10">
                 <div class="px-3 mb-1" x-show="!$store.sidebar.collapsed || $store.sidebar.mobileOpen" x-transition>
                     <span class="text-xs font-bold uppercase tracking-wider text-blue-200/80">OTORISASI & WORKFLOW</span>
@@ -203,7 +254,7 @@
                 @if($canApproveSupervisor)
                     <a
                         href="{{ route('tickets.index', ['status' => \App\Models\Ticket::STATUS_WAITING_SUPERVISOR]) }}"
-                        class="flex items-center gap-3 px-3 py-2 rounded-xl transition-all group {{ request('status') === \App\Models\Ticket::STATUS_WAITING_SUPERVISOR ? 'bg-white/20 text-white font-bold shadow-xs ring-1 ring-white/20' : 'text-blue-100 hover:text-white hover:bg-white/10 font-medium' }}"
+                        class="flex items-center gap-3 px-3 py-2 rounded-xl transition-all group {{ $isSupervisorMenuActive ? 'bg-white/20 text-white font-bold shadow-xs ring-1 ring-white/20' : 'text-blue-100 hover:text-white hover:bg-white/10 font-medium' }}"
                         :class="{
                             'lg:justify-center lg:px-0': $store.sidebar.collapsed,
                             'gap-3 px-3': !$store.sidebar.collapsed
@@ -220,11 +271,10 @@
                         </span>
                     </a>
                 @endif
-
                 @if($canApproveItHead)
                     <a
                         href="{{ route('tickets.index', ['status' => \App\Models\Ticket::STATUS_WAITING_IT_HEAD]) }}"
-                        class="flex items-center gap-3 px-3 py-2 rounded-xl transition-all group {{ request('status') === \App\Models\Ticket::STATUS_WAITING_IT_HEAD ? 'bg-white/20 text-white font-bold shadow-xs ring-1 ring-white/20' : 'text-blue-100 hover:text-white hover:bg-white/10 font-medium' }}"
+                        class="flex items-center gap-3 px-3 py-2 rounded-xl transition-all group {{ $isItHeadMenuActive ? 'bg-white/20 text-white font-bold shadow-xs ring-1 ring-white/20' : 'text-blue-100 hover:text-white hover:bg-white/10 font-medium' }}"
                         :class="{
                             'lg:justify-center lg:px-0': $store.sidebar.collapsed,
                             'gap-3 px-3': !$store.sidebar.collapsed
@@ -245,7 +295,7 @@
                 @if($canApproveKadiv || $canApproveDireksi)
                     <a
                         href="{{ route('tickets.index', ['status' => $canApproveDireksi && !$canApproveKadiv ? \App\Models\Ticket::STATUS_WAITING_LOA_DIREKSI : \App\Models\Ticket::STATUS_WAITING_LOA_KADIV_IT]) }}"
-                        class="flex items-center gap-3 px-3 py-2 rounded-xl transition-all group {{ in_array(request('status'), [\App\Models\Ticket::STATUS_WAITING_LOA_KADIV_IT, \App\Models\Ticket::STATUS_WAITING_LOA_DIREKSI]) ? 'bg-white/20 text-white font-bold shadow-xs ring-1 ring-white/20' : 'text-blue-100 hover:text-white hover:bg-white/10 font-medium' }}"
+                        class="flex items-center gap-3 px-3 py-2 rounded-xl transition-all group {{ $isExecutiveMenuActive ? 'bg-white/20 text-white font-bold shadow-xs ring-1 ring-white/20' : 'text-blue-100 hover:text-white hover:bg-white/10 font-medium' }}"
                         :class="{
                             'lg:justify-center lg:px-0': $store.sidebar.collapsed,
                             'gap-3 px-3': !$store.sidebar.collapsed
@@ -259,27 +309,6 @@
                         </div>
                         <span class="whitespace-nowrap transition-opacity duration-200" x-show="!$store.sidebar.collapsed || $store.sidebar.mobileOpen" x-transition>
                             LOA Eksekutif
-                        </span>
-                    </a>
-                @endif
-
-                @if($user->isItDeveloper() || $user->isAdmin())
-                    <a
-                        href="{{ route('tickets.index', ['status' => \App\Models\Ticket::STATUS_READY_FOR_WORK]) }}"
-                        class="flex items-center gap-3 px-3 py-2 rounded-xl transition-all group {{ request('status') === \App\Models\Ticket::STATUS_READY_FOR_WORK ? 'bg-white/20 text-white font-bold shadow-xs ring-1 ring-white/20' : 'text-blue-100 hover:text-white hover:bg-white/10 font-medium' }}"
-                        :class="{
-                            'lg:justify-center lg:px-0': $store.sidebar.collapsed,
-                            'gap-3 px-3': !$store.sidebar.collapsed
-                        }"
-                        :title="$store.sidebar.collapsed ? 'Pool Antrean Developer' : ''"
-                    >
-                        <div class="w-7 h-7 rounded-lg bg-white/15 text-emerald-300 flex items-center justify-center shrink-0 group-hover:bg-[#2DCE89] group-hover:text-white transition-all">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                            </svg>
-                        </div>
-                        <span class="whitespace-nowrap transition-opacity duration-200" x-show="!$store.sidebar.collapsed || $store.sidebar.mobileOpen" x-transition>
-                            Pool Antrean Developer
                         </span>
                     </a>
                 @endif

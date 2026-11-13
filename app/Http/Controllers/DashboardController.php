@@ -2,7 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ApprovalDelegation;
 use App\Models\Ticket;
+use App\Models\User;
+use App\Services\ApprovalDelegationService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -11,6 +15,26 @@ class DashboardController extends Controller
     public function index(Request $request): View
     {
         $user = $request->user();
+        $actionCount = 0;
+        $actionTickets = collect();
+        if (! $user->isItDeveloper()) {
+            $actionQuery = $this->actionableTickets($user);
+            $actionCount = (clone $actionQuery)->count();
+            $actionTickets = $actionQuery
+                ->orderByRaw(
+                    'CASE WHEN status IN (?, ?, ?, ?) THEN 0 WHEN status = ? THEN 2 ELSE 1 END',
+                    [
+                        Ticket::STATUS_REVISION_REQUESTER,
+                        Ticket::STATUS_REVISION_BY_IT_HEAD,
+                        Ticket::STATUS_REVISION_MINUTES,
+                        Ticket::STATUS_WAITING_USER_REVIEW,
+                        Ticket::STATUS_DRAFT,
+                    ],
+                )
+                ->latest()
+                ->limit(1)
+                ->get();
+        }
 
         if ($user->isSupervisor()) {
             $counts = [
@@ -26,11 +50,11 @@ class DashboardController extends Controller
 
             $pendingTickets = Ticket::where('supervisor_id', $user->id)
                 ->where('status', Ticket::STATUS_WAITING_SUPERVISOR)
-                ->with(['requester.department'])
+                ->with(['requester.departmentRecord'])
                 ->latest()
                 ->paginate(10);
 
-            return view('dashboard.supervisor', compact('counts', 'pendingTickets'));
+            return view('dashboard.supervisor', compact('counts', 'pendingTickets', 'actionCount', 'actionTickets'));
         }
 
         if ($user->isItHead() || $user->isAdmin()) {
@@ -65,7 +89,7 @@ class DashboardController extends Controller
                 Ticket::STATUS_WAITING_MAJOR_MEETING,
                 Ticket::STATUS_WAITING_MINUTES_APPROVAL,
             ])
-            ->with(['requester.department', 'supervisor'])
+            ->with(['requester.departmentRecord', 'supervisor'])
             ->latest()
             ->paginate(10);
 
@@ -100,7 +124,9 @@ class DashboardController extends Controller
                 'actionableTickets',
                 'categoryStats',
                 'departmentStats',
-                'developerWorkloads'
+                'developerWorkloads',
+                'actionCount',
+                'actionTickets'
             ));
         }
 
@@ -118,13 +144,13 @@ class DashboardController extends Controller
 
             $myActiveTickets = Ticket::where('assigned_to', $user->id)
                 ->whereIn('status', [Ticket::STATUS_IN_PROGRESS, Ticket::STATUS_REVISION_WORK])
-                ->with(['requester.department'])
+                ->with(['requester.departmentRecord'])
                 ->latest()
                 ->get();
 
             $availablePool = Ticket::where('status', Ticket::STATUS_READY_FOR_WORK)
                 ->whereNull('assigned_to')
-                ->with(['requester.department'])
+                ->with(['requester.departmentRecord'])
                 ->latest()
                 ->paginate(10);
 
@@ -140,11 +166,11 @@ class DashboardController extends Controller
             ];
 
             $majorTickets = Ticket::where('status', Ticket::STATUS_WAITING_LOA_KADIV_IT)
-                ->with(['requester.department'])
+                ->with(['requester.departmentRecord'])
                 ->latest()
                 ->paginate(10);
 
-            return view('dashboard.kadiv_it', compact('counts', 'majorTickets'));
+            return view('dashboard.kadiv_it', compact('counts', 'majorTickets', 'actionCount', 'actionTickets'));
         }
 
         if ($user->isDireksi()) {
@@ -163,11 +189,11 @@ class DashboardController extends Controller
             ];
 
             $direksiTickets = Ticket::where('status', Ticket::STATUS_WAITING_LOA_DIREKSI)
-                ->with(['requester.department'])
+                ->with(['requester.departmentRecord'])
                 ->latest()
                 ->paginate(10);
 
-            return view('dashboard.direksi', compact('counts', 'direksiTickets'));
+            return view('dashboard.direksi', compact('counts', 'direksiTickets', 'actionCount', 'actionTickets'));
         }
 
         // Default: Requester Dashboard
@@ -190,6 +216,63 @@ class DashboardController extends Controller
             ->latest()
             ->paginate(10);
 
-        return view('dashboard.requester', compact('counts', 'recentTickets'));
+        return view('dashboard.requester', compact('counts', 'recentTickets', 'actionCount', 'actionTickets'));
+    }
+
+    private function actionableTickets(User $user): Builder
+    {
+        $delegations = app(ApprovalDelegationService::class);
+        $supervisorIds = $delegations->delegatedUserIds($user, ApprovalDelegation::SCOPE_SUPERVISOR);
+        if ($user->isSupervisor()) {
+            $supervisorIds->push($user->id);
+        }
+
+        $canActAsItHead = $user->isItHead()
+            || $delegations->actsForRole($user, User::ROLE_IT_HEAD, ApprovalDelegation::SCOPE_IT_HEAD);
+        $canActAsKadiv = $user->isKadivIt()
+            || $delegations->actsForRole($user, User::ROLE_KADIV_IT, ApprovalDelegation::SCOPE_KADIV_IT);
+        $canActAsDireksi = $user->isDireksi()
+            || $delegations->actsForRole($user, User::ROLE_DIREKSI, ApprovalDelegation::SCOPE_DIREKSI);
+
+        return Ticket::query()->where(function (Builder $query) use ($user, $supervisorIds, $canActAsItHead, $canActAsKadiv, $canActAsDireksi) {
+            $query->where(function (Builder $own) use ($user) {
+                $own->where('requester_id', $user->id)->whereIn('status', [
+                    Ticket::STATUS_DRAFT,
+                    Ticket::STATUS_REVISION_REQUESTER,
+                    Ticket::STATUS_REVISION_BY_IT_HEAD,
+                    Ticket::STATUS_WAITING_MINUTES,
+                    Ticket::STATUS_WAITING_USER_MINUTES,
+                    Ticket::STATUS_REVISION_MINUTES,
+                    Ticket::STATUS_WAITING_USER_REVIEW,
+                ]);
+            });
+
+            if ($supervisorIds->isNotEmpty() || $user->isAdmin()) {
+                $query->orWhere(function (Builder $supervisor) use ($supervisorIds, $user) {
+                    $supervisor->where('status', Ticket::STATUS_WAITING_SUPERVISOR);
+                    if (! $user->isAdmin()) {
+                        $supervisor->whereIn('supervisor_id', $supervisorIds->unique());
+                    }
+                });
+            }
+
+            if ($canActAsItHead || $user->isAdmin()) {
+                $query->orWhereIn('status', [
+                    Ticket::STATUS_WAITING_IT_HEAD,
+                    Ticket::STATUS_WAITING_MAJOR_MEETING,
+                    Ticket::STATUS_WAITING_MINUTES_APPROVAL,
+                    Ticket::STATUS_WAITING_USER_REVIEW,
+                ]);
+            }
+
+            if ($canActAsKadiv || $user->isAdmin()) {
+                $query->orWhere('status', Ticket::STATUS_WAITING_LOA_KADIV_IT);
+            }
+
+            if ($canActAsDireksi || $user->isAdmin()) {
+                $query->orWhere('status', Ticket::STATUS_WAITING_LOA_DIREKSI);
+            }
+
+        });
     }
 }

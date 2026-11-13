@@ -23,7 +23,7 @@ class MeetingMinutesController extends Controller
     public function create(Ticket $ticket): View
     {
         $this->authorize('manageMeetingMinutes', $ticket);
-        $ticket->load(['requester.department', 'supervisor', 'meetingMinutes']);
+        $ticket->load(['requester.departmentRecord', 'supervisor', 'meetingMinutes']);
 
         return view('meeting-minutes.create', compact('ticket'));
     }

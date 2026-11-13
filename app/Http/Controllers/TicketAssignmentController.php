@@ -88,7 +88,6 @@ class TicketAssignmentController extends Controller
             'user_id' => $actor->id,
             'activity_type' => 'release_to_pool',
             'content' => "Tiket dikembalikan ke Pool Antrean oleh {$actor->name}. Alasan: {$reason}",
-            'activity_note' => "Tiket dikembalikan ke Pool Antrean oleh {$actor->name}. Alasan: {$reason}",
             'created_at' => now(),
         ]);
 

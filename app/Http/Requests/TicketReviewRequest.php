@@ -9,7 +9,10 @@ class TicketReviewRequest extends FormRequest
     public function authorize(): bool
     {
         $ticket = $this->route('ticket');
-        return $this->user() !== null && $ticket->requester_id === $this->user()->id;
+
+        return $ticket && $this->user()
+            && $ticket->requester_id === $this->user()->id
+            && $this->user()->can('reviewTicket', $ticket);
     }
 
     public function rules(): array

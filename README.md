@@ -67,7 +67,7 @@ Status tiket divalidasi melalui `TicketStateMachine` dan setiap transisi penting
 ## Teknologi
 
 - PHP `^8.2`
-- Laravel `^11.31`
+- Laravel `^12.72.0`
 - MySQL/MariaDB untuk production; SQLite in-memory untuk test
 - Blade, Alpine.js, Tailwind CSS, dan Vite
 - Chart.js dan Trumbowyg
@@ -145,6 +145,7 @@ Driver yang tersedia:
 Driver dipilih secara eksplisit. Driver tidak dikenal menghasilkan error dan driver mock ditolak pada environment production.
 
 Rancangan perpindahan local-to-API dijelaskan di [Dokumentasi Integrasi](docs/INTEGRATION.md).
+Dokumen yang dapat diberikan kepada tim pembuat API eksternal tersedia di [Kontrak API Eksternal](docs/KONTRAK_API_EKSTERNAL.md).
 
 ## Endpoint API
 
@@ -210,6 +211,7 @@ docs/                      Dokumentasi operasional dan integrasi
 
 - [Panduan deployment cPanel](docs/DEPLOYMENT_CPANEL.md)
 - [Rancangan integrasi SSO dan LOA](docs/INTEGRATION.md)
+- [Kontrak API untuk tim aplikasi eksternal](docs/KONTRAK_API_EKSTERNAL.md)
 - [Desain antarmuka](DESIGN.md)
 - [Spesifikasi fitur](specs/)
 - [Laporan audit keamanan](Laporan_Audit_Keamanan_Aplikasi_Helpdesk_IT.pdf)

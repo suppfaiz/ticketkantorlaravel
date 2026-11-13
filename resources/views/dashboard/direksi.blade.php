@@ -5,6 +5,8 @@
         </div>
     </x-slot>
 
+    <x-action-queue :tickets="$actionTickets" :count="$actionCount" />
+
     <!-- KPI Metric Cards (Argon Modern Gradients) -->
     <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-5 mb-6">
         <x-kpi-card
@@ -32,7 +34,7 @@
     </div>
 
     <!-- Direksi LOA Queue Table -->
-    <div data-ajax-poll="dashboard-list" class="sm:bg-white sm:rounded-2xl sm:border sm:border-slate-100 sm:shadow-sm sm:overflow-hidden mb-6">
+    <div data-ajax-poll="dashboard-list" class="lg:bg-white lg:rounded-2xl lg:border lg:border-slate-100 lg:shadow-sm lg:overflow-hidden mb-6">
         <div class="px-1 sm:px-6 pb-3 sm:py-4 sm:border-b sm:border-slate-100 flex items-center justify-between sm:bg-white">
             <h2 class="text-sm sm:text-base font-bold text-slate-800 tracking-tight">Antrean Tiket Major Butuh Keputusan LOA Direksi</h2>
             <a href="{{ route('tickets.index') }}" class="text-xs font-semibold text-[#1E40AF] sm:text-white sm:bg-[#1E40AF] sm:hover:bg-[#1D4ED8] sm:px-3.5 sm:py-1.5 rounded-lg sm:shadow-xs flex items-center gap-1 transition-all shrink-0">
@@ -55,14 +57,14 @@
             </div>
         @else
             <!-- Mobile Native Separated Cards View (Handphone Only, Hidden on sm: Desktop) -->
-            <div class="sm:hidden space-y-2.5">
+            <div class="lg:hidden space-y-2.5">
                 @foreach($direksiTickets as $ticket)
                     <x-mobile-ticket-card :ticket="$ticket" />
                 @endforeach
             </div>
 
             <!-- Desktop Table View (Identical on sm: and up) -->
-            <div class="hidden sm:block overflow-x-auto">
+            <div class="hidden lg:block overflow-x-auto">
                 <table class="min-w-full divide-y divide-slate-100">
                     <thead class="bg-[#1E40AF]">
                         <tr>
@@ -93,7 +95,7 @@
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-xs text-slate-600">
                                     <div class="font-semibold text-slate-800">{{ $ticket->requester->name }}</div>
-                                    <div class="text-xs text-slate-400">{{ $ticket->requester->department?->name ?? 'Tanpa Departemen' }}</div>
+                                    <div class="text-xs text-slate-400">{{ $ticket->requester->departmentRecord?->name ?? $ticket->requester->department ?? 'Tanpa Departemen' }}</div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-medium border {{ $ticket->classification === 'Major' ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200' }}">

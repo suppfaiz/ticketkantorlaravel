@@ -84,7 +84,7 @@ class AppServiceProvider extends ServiceProvider
         // Support HTTPS behind cPanel AutoSSL / Cloudflare / LiteSpeed proxies
         if (
             config('app.env') === 'production' &&
-            (env('FORCE_HTTPS', false) || request()->isSecure() || request()->header('X-Forwarded-Proto') === 'https')
+            (config('app.force_https') || request()->isSecure())
         ) {
             URL::forceScheme('https');
         }

@@ -11,9 +11,14 @@ class NotificationController extends Controller
 {
     public function index(Request $request): View
     {
-        $notifications = $request->user()->notifications()->latest()->paginate(15);
+        $filter = $request->query('filter') === 'unread' ? 'unread' : 'all';
+        $unreadCount = $request->user()->unreadNotifications()->count();
+        $query = $filter === 'unread'
+            ? $request->user()->unreadNotifications()
+            : $request->user()->notifications();
+        $notifications = $query->latest()->paginate(15)->withQueryString();
 
-        return view('notifications.index', compact('notifications'));
+        return view('notifications.index', compact('notifications', 'filter', 'unreadCount'));
     }
 
     public function read(Request $request, DatabaseNotification $notification): RedirectResponse

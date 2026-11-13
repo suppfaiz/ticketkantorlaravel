@@ -43,138 +43,68 @@
     $isRejected = str_contains(strtolower($status), 'ditolak');
 @endphp
 
-<div class="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-xs mb-5 sm:mb-6">
-    <!-- Mobile Header (Single Clean Line, No Redundant Status Pill, Hidden on sm: Desktop) -->
-    <div class="sm:hidden flex items-center justify-between gap-2 mb-3 pb-2.5 border-b border-slate-100">
-        <span class="font-mono text-xs font-bold text-[#1E40AF]">
-            {{ $ticket->ticket_number }}
-        </span>
-        <span class="text-xs text-slate-500 truncate">
-            {{ $ticket->category }}
-            &bull; {{ $ticket->classification ?? ($isMajor ? 'Major' : 'Minor') }}
-            @if($ticket->priority)
-                &bull; {{ $ticket->priority }}
-            @endif
-        </span>
-    </div>
+@php
+    $totalSteps = count($steps);
+    $currentDisplayIndex = min($activeStepIndex, $totalSteps);
+    $currentStepLabel = $status === \App\Models\Ticket::STATUS_COMPLETED
+        ? 'Selesai & Ditutup'
+        : ($steps[$currentDisplayIndex - 1]['label'] ?? $status);
+    $nextStepLabel = ($currentDisplayIndex < $totalSteps && !$isRejected && $status !== \App\Models\Ticket::STATUS_COMPLETED)
+        ? ($steps[$currentDisplayIndex]['label'] ?? null)
+        : null;
+    $progressPercent = $status === \App\Models\Ticket::STATUS_COMPLETED
+        ? 100
+        : (int) round(($currentDisplayIndex / $totalSteps) * 100);
+@endphp
 
-    <!-- Desktop Header (Identical on sm: and up) -->
-    <div class="hidden sm:flex flex-wrap items-center justify-between gap-3 mb-4 pb-3.5 border-b border-slate-100">
-        <div class="flex flex-wrap items-center gap-2 text-xs">
-            <span class="font-mono font-bold text-[#1E40AF] bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200/70">
-                {{ $ticket->ticket_number }}
-            </span>
-            <span class="text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md">
-                Kategori: <strong class="text-slate-800 font-semibold">{{ $ticket->category }}</strong>
-            </span>
-            <span class="text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md">
-                Klasifikasi: <strong class="text-slate-800 font-semibold">{{ $ticket->classification ?? ($isMajor ? 'Major' : 'Minor') }}</strong>
-            </span>
-            @if($ticket->priority)
-                <span class="text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md">
-                    Prioritas: <strong class="text-slate-800 font-semibold">{{ $ticket->priority }}</strong>
-                </span>
-            @endif
-        </div>
-        <x-ticket-status-badge :status="$status" />
-    </div>
-
-    @php
-        $totalSteps = count($steps);
-        $currentDisplayIndex = min($activeStepIndex, $totalSteps);
-        $currentStepLabel = $status === \App\Models\Ticket::STATUS_COMPLETED
-            ? 'Selesai & Ditutup'
-            : ($steps[$currentDisplayIndex - 1]['label'] ?? $status);
-        $nextStepLabel = ($currentDisplayIndex < $totalSteps && !$isRejected && $status !== \App\Models\Ticket::STATUS_COMPLETED)
-            ? ($steps[$currentDisplayIndex]['label'] ?? null)
-            : null;
-        $progressPercent = $status === \App\Models\Ticket::STATUS_COMPLETED
-            ? 100
-            : (int) round(($currentDisplayIndex / $totalSteps) * 100);
-    @endphp
-
-    <!-- Mobile Compact Progress Bar & Expandable Stepper (Handphone Only, Hidden on sm: Desktop) -->
-    <div x-data="{ showAllSteps: false }" class="sm:hidden">
-        <div class="flex items-center justify-between gap-2 mb-2">
-            <div class="flex items-center gap-2 min-w-0">
-                <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 {{ $isRejected ? 'bg-rose-600 text-white' : ($status === \App\Models\Ticket::STATUS_COMPLETED ? 'bg-emerald-600 text-white' : 'bg-[#1E40AF] text-white') }}">
-                    {{ $currentDisplayIndex }}
-                </span>
-                <div class="min-w-0">
-                    <div class="text-xs font-bold text-slate-900 truncate">
-                        Tahap {{ $currentDisplayIndex }} dari {{ $totalSteps }}: {{ $currentStepLabel }}
-                    </div>
-                    @if($nextStepLabel)
-                        <div class="text-[11px] text-slate-500 truncate">
-                            Selanjutnya: {{ $nextStepLabel }}
-                        </div>
-                    @endif
-                </div>
+<section x-data="{ showAllSteps: false }" class="mx-auto mb-5 w-full max-w-[1600px] rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-xs sm:px-6 sm:py-5" aria-label="Ringkasan dan alur tiket">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div class="min-w-0">
+            <div class="text-xs font-bold tracking-wide text-[#1E40AF]">{{ $ticket->ticket_number }}</div>
+            <h2 class="mt-1 text-lg font-bold leading-snug text-slate-900 sm:text-xl">{{ $ticket->title }}</h2>
+            <div class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-600 sm:text-sm">
+                <span>{{ $ticket->category }}</span>
+                <span class="text-slate-300">&bull;</span>
+                <span>{{ $ticket->classification ?? ($isMajor ? 'Major' : 'Minor') }}</span>
+                @if($ticket->priority)
+                    <span class="text-slate-300">&bull;</span>
+                    <span>Prioritas {{ $ticket->priority }}</span>
+                @endif
             </div>
-            <button
-                type="button"
-                @click="showAllSteps = !showAllSteps"
-                class="text-[11px] font-semibold text-[#1E40AF] bg-blue-50 px-2.5 py-1 rounded-lg shrink-0 cursor-pointer"
-            >
-                <span x-text="showAllSteps ? 'Tutup' : 'Rincian'">Rincian</span>
+        </div>
+        <div class="shrink-0 self-start"><x-ticket-status-badge :status="$status" /></div>
+    </div>
+
+    <div class="mt-4 border-t border-slate-100 pt-4">
+        <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <div class="min-w-0">
+                <div class="text-xs font-medium text-slate-500">Tahap {{ $currentDisplayIndex }} dari {{ $totalSteps }}</div>
+                <div class="text-sm font-bold text-slate-900">{{ $currentStepLabel }}</div>
+                @if($nextStepLabel)
+                    <div class="text-xs text-slate-500">Berikutnya: {{ $nextStepLabel }}</div>
+                @endif
+            </div>
+            <button type="button" @click="showAllSteps = !showAllSteps" :aria-expanded="showAllSteps.toString()" aria-controls="ticket-all-steps" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-[#1E40AF] hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-[#1E40AF]/30">
+                <span x-text="showAllSteps ? 'Tutup alur' : 'Lihat seluruh alur'">Lihat seluruh alur</span>
+                <svg class="h-3.5 w-3.5 transition-transform" :class="showAllSteps ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
             </button>
         </div>
-
-        <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-            <div
-                class="h-full rounded-full transition-all duration-300 {{ $isRejected ? 'bg-rose-500' : ($status === \App\Models\Ticket::STATUS_COMPLETED ? 'bg-emerald-500' : 'bg-[#1E40AF]') }}"
-                style="width: {{ $progressPercent }}%;"
-            ></div>
-        </div>
-
-        <div x-show="showAllSteps" x-collapse style="display: none;" class="mt-3 pt-3 border-t border-slate-100 grid grid-cols-2 gap-2">
-            @foreach($steps as $index => $step)
-                @php
-                    $stepNum = $index + 1;
-                    $isPassed = $stepNum < $activeStepIndex;
-                    $isCurrent = $stepNum === $activeStepIndex && ! $isRejected;
-                @endphp
-                <div class="flex items-center gap-2 p-1.5 rounded-lg {{ $isCurrent ? 'bg-blue-50/80 border border-blue-200/70' : '' }}">
-                    <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 {{ $isPassed ? 'bg-[#1E40AF] text-white' : ($isCurrent ? 'bg-white text-[#1E40AF] border-2 border-[#1E40AF]' : 'bg-slate-100 text-slate-400') }}">
-                        @if($isPassed)
-                            ✓
-                        @else
-                            {{ $stepNum }}
-                        @endif
-                    </span>
-                    <span class="text-[11px] truncate {{ $isCurrent ? 'font-bold text-[#1E40AF]' : ($isPassed ? 'font-medium text-slate-700' : 'text-slate-400') }}">
-                        {{ $step['label'] }}
-                    </span>
-                </div>
-            @endforeach
+        <div class="mt-3 h-2 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-label="Kemajuan alur tiket" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ $progressPercent }}">
+            <div class="h-full rounded-full {{ $isRejected ? 'bg-rose-500' : ($status === \App\Models\Ticket::STATUS_COMPLETED ? 'bg-emerald-500' : 'bg-[#1E40AF]') }}" style="width: {{ $progressPercent }}%"></div>
         </div>
     </div>
 
-    <!-- Desktop Full Horizontal Stepper (Hidden on Mobile, Identical on sm: and up) -->
-    <div class="hidden sm:block overflow-x-auto pb-1">
-        <ol class="flex items-center w-full min-w-[680px]">
-            @foreach($steps as $index => $step)
-                @php
-                    $stepNum = $index + 1;
-                    $isPassed = $stepNum < $activeStepIndex;
-                    $isCurrent = $stepNum === $activeStepIndex && ! $isRejected;
-                @endphp
-                <li class="relative flex-1 {{ ! $loop->last ? "after:content-[''] after:w-full after:h-0.5 after:border-b " . ($isPassed ? 'after:border-[#1E40AF]' : 'after:border-slate-200') . " after:inline-block after:absolute after:top-3.5 after:left-[50%]" : '' }}">
-                    <div class="flex flex-col items-center group relative z-10 px-1">
-                        <span class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold transition-all
-                            {{ $isPassed ? 'bg-[#1E40AF] text-white shadow-xs' : ($isCurrent ? 'bg-white text-[#1E40AF] border-2 border-[#1E40AF] ring-4 ring-[#1E40AF]/15 shadow-xs font-bold' : 'bg-slate-100 text-slate-400 border border-slate-200') }}">
-                            @if($isPassed)
-                                <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
-                            @else
-                                {{ $stepNum }}
-                            @endif
-                        </span>
-                        <span class="text-[11px] mt-1.5 font-medium tracking-tight text-center whitespace-nowrap {{ $isCurrent ? 'text-[#1E40AF] font-bold' : ($isPassed ? 'text-slate-800' : 'text-slate-400') }}">
-                            {{ $step['label'] }}
-                        </span>
-                    </div>
-                </li>
-            @endforeach
-        </ol>
-    </div>
-</div>
+    <ol id="ticket-all-steps" x-show="showAllSteps" x-collapse style="display: none;" class="mt-4 grid grid-cols-2 gap-2 border-t border-slate-100 pt-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+        @foreach($steps as $index => $step)
+            @php
+                $stepNum = $index + 1;
+                $isPassed = $stepNum < $activeStepIndex;
+                $isCurrent = $stepNum === $activeStepIndex && ! $isRejected;
+            @endphp
+            <li class="flex min-w-0 items-center gap-2 rounded-lg px-2 py-2 {{ $isCurrent ? 'bg-blue-50 text-[#1E40AF]' : 'bg-slate-50 text-slate-600' }}">
+                <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold {{ $isPassed ? 'bg-[#1E40AF] text-white' : ($isCurrent ? 'border-2 border-[#1E40AF] bg-white text-[#1E40AF]' : 'bg-slate-200 text-slate-500') }}">{{ $isPassed ? '✓' : $stepNum }}</span>
+                <span class="min-w-0 text-xs font-medium leading-tight">{{ $step['label'] }}</span>
+            </li>
+        @endforeach
+    </ol>
+</section>

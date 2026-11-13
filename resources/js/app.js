@@ -355,7 +355,15 @@ function initSmartTabAjaxPolling() {
                 if (isHiddenTab) return;
 
                 const nextEl = doc.querySelector(`[data-ajax-poll="${key}"]`);
-                if (nextEl && currentEl.innerHTML !== nextEl.innerHTML) {
+                if (!nextEl) return;
+
+                const nextVersion = nextEl.getAttribute('data-ajax-poll-version');
+                if (nextVersion !== null) {
+                    if (currentEl.getAttribute('data-ajax-poll-version') !== nextVersion) {
+                        currentEl.innerHTML = nextEl.innerHTML;
+                        currentEl.setAttribute('data-ajax-poll-version', nextVersion);
+                    }
+                } else if (currentEl.innerHTML !== nextEl.innerHTML) {
                     currentEl.innerHTML = nextEl.innerHTML;
                 }
             });

@@ -1,6 +1,8 @@
 # Rancangan Integrasi SSO dan LOA
 
-Deployment pertama ditargetkan memakai akun dan approval lokal. Setelah aplikasi eksternal siap, integrasi dapat dialihkan melalui konfigurasi tanpa mengubah workflow tiket.
+Deployment pertama ditargetkan memakai akun dan approval lokal. Dokumen ini adalah rancangan kontrak dari sisi Helpdesk, bukan dokumentasi final API aplikasi lain. Setelah tim pemilik API menyerahkan spesifikasi dan sandbox, cocokkan endpoint, header, payload, respons, dan keamanan dengan adapter sebelum mengubah driver.
+
+Untuk diserahkan kepada tim pembuat API eksternal, gunakan [Kontrak API Eksternal](KONTRAK_API_EKSTERNAL.md).
 
 ## 1. Target arsitektur driver
 
@@ -64,6 +66,8 @@ Pekerjaan yang menunggu kesiapan aplikasi eksternal:
 
 ## 3. Kontrak SSO minimum
 
+Helpdesk saat ini mengirim email dari formulir login sebagai `username` ke API eksternal. Endpoint ini **disediakan aplikasi identitas**, bukan endpoint publik Helpdesk. `SSO_CLIENT_SECRET` sudah ada di konfigurasi, tetapi adapter saat ini belum mengirimnya; mekanisme autentikasi client harus disepakati dan diimplementasikan sebelum integrasi aktif.
+
 ### Permintaan login
 
 ```http
@@ -94,6 +98,8 @@ X-Client-Id: helpdesk
 }
 ```
 
+Respons gagal perlu menyebut kode HTTP dan bentuk error yang konsisten; password dan token tidak boleh muncul dalam log. Sepakati juga batas waktu respons, kebijakan rate limit, masa berlaku token, dan apakah pengguna yang belum ada boleh dibuat otomatis di Helpdesk.
+
 Sebelum production, sepakati:
 
 - Claim JWT dan algorithm.
@@ -120,34 +126,61 @@ Decode payload tanpa memverifikasi signature tidak boleh dianggap autentikasi ya
 
 ## 5. Kontrak LOA minimum
 
+Endpoint `approvals` berikut **disediakan aplikasi LOA**. URL webhook pada bagian "Menerima keputusan" disediakan oleh Helpdesk. Nama endpoint dan field masih harus dikonfirmasi dengan pemilik aplikasi LOA.
+
 ### Mengirim approval
 
 ```http
 POST {LOA_API_URL}/approvals
-Authorization: Bearer {LOA_API_KEY}
+X-Api-Key: {LOA_API_KEY}
 Idempotency-Key: {stable-key}
 Content-Type: application/json
 ```
 
-Payload minimal membawa nomor/ID tiket, level approval, identitas pemohon, judul, ringkasan, callback URL, dan idempotency key.
+Payload yang dikirim adapter saat ini:
+
+```json
+{
+  "ticket_id": 123,
+  "ticket_number": "TICK-20261112-0001",
+  "title": "Permintaan perubahan sistem",
+  "classification": "Major",
+  "approval_level": "kadiv_it_ops",
+  "approver": {"role": "kadiv_it_ops"},
+  "callback_url": "https://helpdesk.example.com/api/v1/webhooks/loa-decision"
+}
+```
+
+`approval_level` saat ini memakai `supervisor`, `kadiv_it_ops`, atau `direksi`. Kunci idempotensi dikirim di header. Respons sukses harus berisi `reference_id` atau `loa_id` agar status dapat diperiksa. Identitas pemohon, ringkasan, dan bentuk data approver yang dibutuhkan aplikasi LOA perlu disepakati; field tersebut belum seluruhnya dikirim adapter saat ini.
 
 ### Memeriksa status
 
 ```http
 GET {LOA_API_URL}/approvals/{external_reference_id}
-Authorization: Bearer {LOA_API_KEY}
+X-Api-Key: {LOA_API_KEY}
 ```
+
+Respons status perlu memuat `decision` (`waiting`, `approved`, `rejected`, atau `revision`) dan `notes` bila ada.
 
 ### Menerima keputusan
 
 ```http
 POST /api/v1/webhooks/loa-decision
 X-Signature-SHA256: {hmac}
+Content-Type: application/json
 ```
 
-Webhook harus memiliki event ID atau idempotency key agar pengiriman ulang tidak menghasilkan transisi status ganda.
+Payload webhook saat ini harus memuat `idempotency_key`, `decision`, dan opsional `notes`. Middleware memeriksa HMAC-SHA256 atas **raw body JSON** dengan `LOA_WEBHOOK_SECRET`, ditulis sebagai string heksadesimal di header. Service juga menghitung ulang HMAC dari JSON yang sudah diparse; kedua pemeriksaan ini perlu disatukan sebelum mode API diaktifkan agar perbedaan format JSON tidak menolak webhook yang valid. Untuk kontrak final, sepakati pula event ID, format waktu, cara pengiriman ulang, serta respons bila keputusan sudah diproses.
 
-## 6. Kepemilikan data
+## 6. Dokumen yang perlu diminta dari pemilik API
+
+- Base URL sandbox dan production, daftar endpoint, metode HTTP, serta contoh request/response sukses dan gagal.
+- Cara autentikasi antar aplikasi, distribusi secret/public key, rotasi kunci, dan izin akses jaringan dari server cPanel.
+- Identitas pegawai yang stabil (`sso_id`), mapping role/departemen/atasan, serta aturan akun nonaktif dan perubahan data pegawai.
+- Kode keputusan LOA, level approver, idempotensi, retry, timeout, webhook, dan kontak teknis untuk pengujian.
+- OpenAPI/Swagger atau Postman Collection bila tersedia, berikut versi API dan kebijakan perubahan kontrak.
+
+## 7. Kepemilikan data
 
 | Data | Fase awal | Setelah integrasi |
 |---|---|---|
@@ -162,7 +195,7 @@ Webhook harus memiliki event ID atau idempotency key agar pengiriman ulang tidak
 
 Role Helpdesk tidak sebaiknya langsung dipercaya dari string bebas pada API. Gunakan mapping yang disepakati dan default paling terbatas.
 
-## 7. Strategi perpindahan
+## 8. Strategi perpindahan
 
 1. Bekukan dan dokumentasikan kontrak API.
 2. Siapkan sandbox aplikasi eksternal.
@@ -177,7 +210,7 @@ Role Helpdesk tidak sebaiknya langsung dipercaya dari string bebas pada API. Gun
 11. Pantau login, dispatch LOA, webhook, retry, dan audit log.
 12. Siapkan rollback ke driver lokal.
 
-## 8. Prinsip fail-safe
+## 9. Prinsip fail-safe
 
 - Driver tidak dikenal harus menghasilkan error, bukan fallback ke mock.
 - Mock harus ditolak pada production.

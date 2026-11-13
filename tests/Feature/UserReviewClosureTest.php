@@ -14,8 +14,11 @@ class UserReviewClosureTest extends TestCase
     use RefreshDatabase;
 
     protected User $requester;
+
     protected User $supervisor;
+
     protected User $developer;
+
     protected User $otherRequester;
 
     protected function setUp(): void
@@ -44,6 +47,30 @@ class UserReviewClosureTest extends TestCase
             'name' => 'Developer Penanggung Jawab',
             'role' => User::ROLE_IT_DEVELOPER,
         ]);
+    }
+
+    public function test_review_endpoints_reject_ticket_before_user_review_without_saving_feedback(): void
+    {
+        $ticket = Ticket::create([
+            'ticket_number' => 'TICK-20261028-0049',
+            'requester_id' => $this->requester->id,
+            'supervisor_id' => $this->supervisor->id,
+            'category' => 'Software',
+            'classification' => Ticket::CLASSIFICATION_MINOR,
+            'title' => 'Tiket belum selesai dikerjakan',
+            'description' => 'Pemohon belum boleh memberikan ulasan.',
+            'status' => Ticket::STATUS_IN_PROGRESS,
+            'assigned_to' => $this->developer->id,
+        ]);
+
+        $this->actingAs($this->requester)
+            ->post(route('tickets.user-review', $ticket), ['action' => 'accept', 'rating' => 5])
+            ->assertForbidden();
+        $this->post(route('tickets.reviews.accept', $ticket), ['rating' => 5])
+            ->assertForbidden();
+
+        $this->assertDatabaseCount('ticket_reviews', 0);
+        $this->assertSame(Ticket::STATUS_IN_PROGRESS, $ticket->fresh()->status);
     }
 
     public function test_requester_can_accept_and_close_ticket(): void

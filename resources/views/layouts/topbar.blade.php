@@ -1,6 +1,10 @@
 @php
     $authUser = Auth::user();
-    $notifications = $authUser?->unreadNotifications()->latest()->limit(5)->get() ?? collect();
+    $notifications = $authUser?->notifications()
+        ->orderByRaw('CASE WHEN read_at IS NULL THEN 0 ELSE 1 END')
+        ->latest('created_at')
+        ->limit(5)
+        ->get() ?? collect();
     $notifCount = $authUser?->unreadNotifications()->count() ?? 0;
 @endphp
 
@@ -35,13 +39,15 @@
                 @click="showNotifications = !showNotifications; showApps = false"
                 class="relative p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-colors focus:outline-none cursor-pointer"
                 aria-label="Notifikasi Aktivitas"
+                aria-describedby="topbar-notif-count"
             >
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                 </svg>
                 <span data-ajax-poll="topbar-notif-dot">
+                    <span id="topbar-notif-count" class="sr-only">{{ $notifCount }} notifikasi belum dibaca</span>
                     @if($notifCount > 0)
-                        <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-[#F5365C] rounded-full ring-2 ring-white"></span>
+                        <span class="absolute -right-1.5 -top-1.5 flex min-h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold leading-none text-white tabular-nums ring-2 ring-white" aria-hidden="true">{{ $notifCount > 99 ? '99+' : $notifCount }}</span>
                     @endif
                 </span>
             </button>
@@ -61,7 +67,7 @@
                 data-ajax-poll="topbar-notif-panel"
             >
                 <div class="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between">
-                    <span class="text-xs font-semibold text-slate-900">Notifikasi ({{ $notifCount }})</span>
+                    <span class="text-xs font-semibold text-slate-900">Notifikasi <span class="font-medium text-slate-500">{{ $notifCount }} belum dibaca</span></span>
                     <a href="{{ route('notifications.index') }}" class="text-2xs font-medium text-slate-500 hover:text-slate-900 transition-colors">
                         Lihat Semua
                     </a>
@@ -71,21 +77,21 @@
                     @forelse($notifications as $item)
                         <form method="POST" action="{{ route('notifications.read', $item) }}">
                             @csrf
-                            <button type="submit" class="block w-full px-4 py-2.5 text-left hover:bg-slate-50 transition-colors">
+                            <button type="submit" class="block w-full border-l-4 px-4 py-3 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#1E40AF] {{ $item->read_at ? 'border-transparent bg-white hover:bg-slate-50' : 'border-[#1E40AF] bg-blue-100/70 hover:bg-blue-100' }}" aria-label="{{ $item->read_at ? 'Buka lagi' : 'Buka dan tandai dibaca' }}: {{ $item->data['title'] ?? 'Pembaruan tiket' }}">
                                 <span class="flex items-center justify-between gap-3">
-                                    <span class="text-xs font-medium text-slate-900 truncate">
+                                    <span class="min-w-0 truncate text-xs {{ $item->read_at ? 'font-medium text-slate-700' : 'font-bold text-slate-950' }}">
                                         {{ $item->data['title'] ?? 'Pembaruan tiket' }}
                                     </span>
                                     <span class="text-[11px] text-slate-400 tabular-nums shrink-0">{{ $item->created_at->diffForHumans() }}</span>
                                 </span>
-                                <span class="mt-0.5 block text-[11px] text-slate-500 truncate tabular-nums">
+                                <span class="mt-0.5 block truncate text-[11px] tabular-nums {{ $item->read_at ? 'text-slate-500' : 'text-slate-700' }}">
                                     {{ $item->data['ticket_number'] ?? '-' }} &bull; {{ $item->data['message'] ?? '' }}
                                 </span>
                             </button>
                         </form>
                     @empty
                         <div class="py-6 px-4 text-center">
-                            <p class="text-xs font-medium text-slate-600">Tidak ada notifikasi baru</p>
+                            <p class="text-xs font-medium text-slate-600">Belum ada notifikasi</p>
                         </div>
                     @endforelse
                 </div>

@@ -186,8 +186,8 @@
                     </div>
                     <div class="min-w-0 flex-1">
                         <div class="font-semibold text-slate-900 text-sm truncate">{{ $ticket->supervisor?->name ?? 'Belum ditentukan' }}</div>
-                        @if($ticket->supervisor?->department)
-                            <div class="text-slate-500 text-xs truncate">{{ $ticket->supervisor->department->name }}</div>
+                        @if($ticket->supervisor?->departmentRecord || $ticket->supervisor?->department)
+                            <div class="text-slate-500 text-xs truncate">{{ $ticket->supervisor->departmentRecord?->name ?? $ticket->supervisor->department }}</div>
                         @endif
                     </div>
                 </div>

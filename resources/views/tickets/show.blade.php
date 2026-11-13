@@ -2,7 +2,7 @@
     <x-slot name="header">
         <div class="flex items-center justify-between gap-2 sm:gap-4">
             <div class="min-w-0 flex-1">
-                <h1 class="text-base sm:text-xl font-bold text-slate-900 tracking-tight truncate">{{ $ticket->title }}</h1>
+                <h1 class="text-base sm:text-xl font-bold text-slate-900 tracking-tight truncate">Detail Tiket</h1>
             </div>
             <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
                 <a
@@ -81,10 +81,10 @@
             }
         }"
         @discussion-count-updated.window="discussionCount = $event.detail.count"
-        class="grid grid-cols-1 lg:grid-cols-12 gap-6"
+        class="mx-auto w-full max-w-[1600px] grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-start"
     >
         <!-- Main Content Area (8 Cols) -->
-        <div class="lg:col-span-8 space-y-6">
+        <div class="lg:col-span-8 min-w-0 space-y-5">
 
             <!-- ACTION PANEL: Tahap A (Draft Ticket Direct Submission) -->
             @if($ticket->status === \App\Models\Ticket::STATUS_DRAFT && auth()->user()->can('update', $ticket))
@@ -116,27 +116,17 @@
 
             <!-- ACTION PANEL: Tahap E (Waiting User Review / Verification Banner) -->
             @can('reviewTicket', $ticket)
-                <div class="bg-emerald-50/80 rounded-xl border border-emerald-200 p-5 shadow-xs">
-                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                        <div>
-                            <div class="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 uppercase tracking-wider mb-1">
-                                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                Pekerjaan Teknis Selesai — Menunggu Konfirmasi Akhir
+                <div x-show="activeTab !== 'review'" style="display: none;" class="rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 shadow-xs">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div class="flex min-w-0 items-start gap-2.5">
+                            <span class="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-emerald-500"></span>
+                            <div class="min-w-0">
+                                <h2 class="text-sm font-semibold text-slate-900">Hasil pekerjaan siap dikonfirmasi</h2>
+                                <p class="mt-0.5 text-xs text-slate-600">{{ $ticket->assignedTo?->name ?? 'Tim IT' }} telah menyelesaikan pekerjaan. Terima hasilnya atau minta revisi.</p>
                             </div>
-                            <h2 class="text-sm font-bold text-slate-900">
-                                {{ auth()->id() === $ticket->requester_id ? 'Silakan Periksa Hasil Pengerjaan & Berikan Ulasan' : 'Verifikasi Penyelesaian Tiket (Otoritas Kabag IT / Admin)' }}
-                            </h2>
-                            <p class="text-xs text-slate-600 mt-0.5">
-                                Teknisi IT (<strong class="text-slate-800">{{ $ticket->assignedTo?->name ?? 'Tim IT' }}</strong>) telah menyelesaikan tiket ini. Konfirmasi terima pekerjaan untuk menutup tiket resmi atau minta revisi jika masih ada kendala.
-                            </p>
                         </div>
-
-                        <button
-                            type="button"
-                            @click="setTab('review')"
-                            class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs shrink-0 self-start sm:self-center cursor-pointer transition-colors"
-                        >
-                            Konfirmasi &amp; Beri Rating &rarr;
+                        <button type="button" @click="setTab('review')" class="self-start rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 sm:self-center">
+                            Tinjau hasil
                         </button>
                     </div>
                 </div>
@@ -779,19 +769,19 @@
             <!-- Status Alerts if Rejected / Needs Revision by IT Head -->
             @can('manageAssignmentAndTimeline', $ticket)
                 @if($ticket->status !== \App\Models\Ticket::STATUS_WAITING_IT_HEAD)
-                    <div class="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <div class="text-xs">
-                            <div class="font-bold text-slate-900 text-sm">Pengaturan Timeline &amp; Penugasan Teknisi (Kabag IT)</div>
-                            <div class="text-slate-500 mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-                                <span>
-                                    Target Timeline:
-                                    <strong class="text-slate-800">{{ $ticket->target_completion_at ? $ticket->target_completion_at->format('d M Y') : 'Belum ditetapkan' }}</strong>
-                                </span>
-                                <span>&bull;</span>
-                                <span>
-                                    Teknisi:
-                                    <strong class="text-slate-800">{{ $ticket->assignedTo?->name ?? 'Belum ditugaskan (Pool)' }}</strong>
-                                </span>
+                    <div class="bg-white rounded-2xl border border-slate-200 border-l-4 border-l-[#1E40AF] px-4 py-4 sm:px-5 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div class="min-w-0">
+                            <div class="text-[11px] font-bold text-[#1E40AF] uppercase tracking-wider">Pengaturan Kabag IT</div>
+                            <h2 class="mt-0.5 font-bold text-slate-900 text-sm">Timeline dan penugasan teknisi</h2>
+                            <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 text-xs">
+                                <div class="min-w-0">
+                                    <span class="block text-slate-500">Target penyelesaian</span>
+                                    <strong class="block mt-0.5 text-slate-800 font-semibold">{{ $ticket->target_completion_at ? $ticket->target_completion_at->format('d M Y') : 'Belum ditetapkan' }}</strong>
+                                </div>
+                                <div class="min-w-0">
+                                    <span class="block text-slate-500">Teknisi pelaksana</span>
+                                    <strong class="block mt-0.5 text-slate-800 font-semibold truncate">{{ $ticket->assignedTo?->name ?? 'Belum ditugaskan (Pool)' }}</strong>
+                                </div>
                             </div>
                         </div>
                         <button
@@ -1035,44 +1025,26 @@
             @endif
 
             <!-- Unified Main Content Card (Tabs + Active Tab Body) -->
-            <div class="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
                 <!-- Sub-Menu Navigation Tabs Header -->
-                <div class="bg-slate-50/80 border-b border-slate-200 px-2.5 sm:px-3 py-2">
-                    <nav class="flex flex-nowrap sm:flex-wrap items-center gap-1 sm:gap-1.5 overflow-x-auto sm:overflow-visible [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] pb-0.5 sm:pb-0" aria-label="Sub-Menu Tiket">
+                <div class="bg-white border-b border-slate-200 px-2.5 sm:px-3 py-2.5">
+                    <nav class="flex flex-nowrap items-center gap-1 overflow-x-auto pb-0.5" aria-label="Sub-Menu Tiket">
                         <!-- Tab 1: Detail Permohonan -->
                         <button 
                             type="button" 
                             @click="setTab('detail')"
-                            :class="activeTab === 'detail' 
-                                ? 'bg-[#1E40AF] text-white shadow-xs font-semibold' 
-                                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 font-medium'"
-                            class="px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-lg text-xs flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer shrink-0 whitespace-nowrap">
-                            <svg class="hidden sm:block w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                            </svg>
+                            :class="activeTab === 'detail' ? 'border-[#1E40AF] text-[#1E40AF] font-semibold' : 'border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300 font-medium'"
+                            class="shrink-0 inline-flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs transition-colors cursor-pointer whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#1E40AF]/30">
                             <span>Detail &amp; Berkas</span>
-                            @if($ticket->attachments->count() > 0)
-                                <span :class="activeTab === 'detail' ? 'bg-white/20 text-white' : 'bg-slate-200/80 text-slate-700'" class="px-1.5 py-0.5 rounded-full text-[11px] sm:text-xs font-bold leading-none">
-                                    {{ $ticket->attachments->count() }}
-                                </span>
-                            @endif
                         </button>
 
                         <!-- Tab: Forum Diskusi -->
                         <button 
                             type="button" 
                             @click="setTab('discussion')"
-                            :class="activeTab === 'discussion' 
-                                ? 'bg-[#1E40AF] text-white shadow-xs font-semibold' 
-                                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 font-medium'"
-                            class="px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-lg text-xs flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer shrink-0 whitespace-nowrap">
-                            <svg class="hidden sm:block w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
-                            </svg>
+                            :class="activeTab === 'discussion' ? 'border-[#1E40AF] text-[#1E40AF] font-semibold' : 'border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300 font-medium'"
+                            class="shrink-0 inline-flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs transition-colors cursor-pointer whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#1E40AF]/30">
                             <span>Forum Diskusi</span>
-                            <span x-text="discussionCount" :class="activeTab === 'discussion' ? 'bg-white/20 text-white' : 'bg-slate-200/80 text-slate-700'" class="px-1.5 py-0.5 rounded-full text-[11px] sm:text-xs font-bold leading-none">
-                                {{ $ticket->discussions->count() }}
-                            </span>
                         </button>
 
                         <!-- Tab 2: Pengerjaan IT -->
@@ -1086,17 +1058,9 @@
                             <button 
                                 type="button" 
                                 @click="setTab('activities')"
-                                :class="activeTab === 'activities' 
-                                    ? 'bg-[#1E40AF] text-white shadow-xs font-semibold' 
-                                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 font-medium'"
-                                class="px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-lg text-xs flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer shrink-0 whitespace-nowrap">
-                                <svg class="hidden sm:block w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
-                                </svg>
+                                :class="activeTab === 'activities' ? 'border-[#1E40AF] text-[#1E40AF] font-semibold' : 'border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300 font-medium'"
+                                class="shrink-0 inline-flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs transition-colors cursor-pointer whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#1E40AF]/30">
                                 <span>Pengerjaan IT</span>
-                                <span :class="activeTab === 'activities' ? 'bg-white/20 text-white' : 'bg-slate-200/80 text-slate-700'" class="px-1.5 py-0.5 rounded-full text-[11px] sm:text-xs font-bold leading-none">
-                                    {{ $ticket->activityLogs->count() }}
-                                </span>
                             </button>
                         @endif
 
@@ -1105,19 +1069,9 @@
                             <button 
                                 type="button" 
                                 @click="setTab('minutes')"
-                                :class="activeTab === 'minutes' 
-                                    ? 'bg-[#1E40AF] text-white shadow-xs font-semibold' 
-                                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 font-medium'"
-                                class="px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-lg text-xs flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer shrink-0 whitespace-nowrap">
-                                <svg class="hidden sm:block w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                                </svg>
+                                :class="activeTab === 'minutes' ? 'border-[#1E40AF] text-[#1E40AF] font-semibold' : 'border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300 font-medium'"
+                                class="shrink-0 inline-flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs transition-colors cursor-pointer whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#1E40AF]/30">
                                 <span>Notulensi Rapat</span>
-                                @if($ticket->meetingMinutes?->isApproved())
-                                    <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-                                @else
-                                    <span class="w-2 h-2 rounded-full bg-amber-500"></span>
-                                @endif
                             </button>
                         @endif
 
@@ -1126,19 +1080,9 @@
                             <button 
                                 type="button" 
                                 @click="setTab('review')"
-                                :class="activeTab === 'review' 
-                                    ? 'bg-[#1E40AF] text-white shadow-xs font-semibold' 
-                                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 font-medium'"
-                                class="px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-lg text-xs flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer shrink-0 whitespace-nowrap">
-                                <svg class="hidden sm:block w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
-                                </svg>
-                                <span>Ulasan Kepuasan</span>
-                                @if($ticket->reviews->isNotEmpty())
-                                    <span :class="activeTab === 'review' ? 'bg-white/20 text-white' : 'bg-slate-200/80 text-slate-700'" class="px-1.5 py-0.5 rounded-full text-[11px] sm:text-xs font-bold leading-none">
-                                        {{ number_format($ticket->reviews->avg('rating'), 1) }}
-                                    </span>
-                                @endif
+                                :class="activeTab === 'review' ? 'border-[#1E40AF] text-[#1E40AF] font-semibold' : 'border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300 font-medium'"
+                                class="shrink-0 inline-flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs transition-colors cursor-pointer whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#1E40AF]/30">
+                                <span>{{ $ticket->status === \App\Models\Ticket::STATUS_WAITING_USER_REVIEW ? 'Konfirmasi Hasil' : 'Ulasan' }}</span>
                             </button>
                         @endif
 
@@ -1146,29 +1090,21 @@
                         <button 
                             type="button" 
                             @click="setTab('audit')"
-                            :class="activeTab === 'audit' 
-                                ? 'bg-[#1E40AF] text-white shadow-xs font-semibold' 
-                                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 font-medium'"
-                            class="px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-lg text-xs flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer shrink-0 whitespace-nowrap">
-                            <svg class="hidden sm:block w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
+                            :class="activeTab === 'audit' ? 'border-[#1E40AF] text-[#1E40AF] font-semibold' : 'border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300 font-medium'"
+                            class="shrink-0 inline-flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs transition-colors cursor-pointer whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#1E40AF]/30">
                             <span>Jejak Audit</span>
-                            <span :class="activeTab === 'audit' ? 'bg-white/20 text-white' : 'bg-slate-200/80 text-slate-700'" class="px-1.5 py-0.5 rounded-full text-[11px] sm:text-xs font-bold leading-none">
-                                {{ $ticket->auditLogs->count() }}
-                            </span>
                         </button>
                     </nav>
                 </div>
 
                 <!-- TAB CONTENT 1: Detail & Berkas Permohonan -->
-                <div x-show="activeTab === 'detail'" class="p-4 sm:p-6 space-y-5 sm:space-y-6">
+                <div x-show="activeTab === 'detail'" class="p-4 sm:p-6 space-y-5">
                     <!-- Section 1: Deskripsi Kebutuhan -->
                     <div>
                         <div class="mb-2 sm:mb-3">
                             <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Deskripsi Kebutuhan</h2>
                         </div>
-                        <div class="sm:p-4 sm:bg-slate-50/70 sm:rounded-xl sm:border sm:border-slate-200/80 prose max-w-none text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">{{ trim($ticket->description) }}</div>
+                        <div class="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80 prose max-w-none text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">{{ trim($ticket->description) }}</div>
                     </div>
 
                     <!-- Section 2: Berkas Lampiran Pendukung -->
@@ -1179,8 +1115,9 @@
                         </div>
 
                         @if($ticket->attachments->isEmpty())
-                            <div class="p-3.5 bg-slate-50/60 rounded-xl border border-dashed border-slate-200 text-xs text-slate-400 text-center">
-                                Tidak ada lampiran berkas pada tiket ini.
+                            <div class="flex items-center gap-2 rounded-xl bg-slate-50/70 border border-slate-200/80 px-3.5 py-3 text-xs text-slate-500">
+                                <svg class="w-4 h-4 shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                                Belum ada lampiran pada tiket ini.
                             </div>
                         @else
                             <div class="divide-y divide-slate-100 sm:rounded-xl sm:border sm:border-slate-200/80 sm:bg-slate-50/40 sm:px-4">
@@ -1258,17 +1195,17 @@
 
         </div>
 
-        <!-- Sidebar Meta Info (4 Cols on Desktop, Compact Collapsible Cards on Mobile) -->
-        <div class="lg:col-span-4 space-y-3 lg:space-y-5" x-data="{ openPemohon: false, openPetugas: false, openLinimasa: false }">
+        <!-- Ringkasan pendukung tetap terpisah agar mudah dipindai. -->
+        <aside class="lg:col-span-4 min-w-0 space-y-3" x-data="{ openPemohon: false, openPetugas: false, openLinimasa: false }" aria-label="Informasi pendukung tiket">
 
             <!-- Card: Data Pemohon -->
-            <div class="bg-white rounded-xl border border-slate-200 p-4 lg:p-5 shadow-xs">
+            <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
                 <button
                     type="button"
                     @click="openPemohon = !openPemohon"
                     class="w-full flex items-center justify-between lg:cursor-default lg:pointer-events-none"
                 >
-                    <h3 class="text-xs font-bold text-slate-600 lg:text-slate-500 uppercase tracking-wider">Informasi Pemohon</h3>
+                    <h3 class="text-sm font-bold text-slate-900">Pemohon</h3>
                     <div class="flex items-center gap-2 lg:hidden">
                         <span class="text-xs font-medium text-slate-700 truncate max-w-[140px]">{{ $ticket->requester->name }}</span>
                         <svg class="w-4 h-4 text-slate-400 transition-transform" :class="openPemohon ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1276,22 +1213,22 @@
                         </svg>
                     </div>
                 </button>
-                <div :class="openPemohon ? 'block' : 'hidden lg:block'" class="mt-3 pt-3 border-t border-slate-100">
-                    <div class="flex items-center gap-3 pb-3 mb-3 border-b border-slate-100">
-                        <div class="w-9 h-9 rounded-full bg-blue-50 text-[#1E40AF] border border-blue-200/70 flex items-center justify-center text-xs font-bold shrink-0">
+                <div :class="openPemohon ? 'block' : 'hidden lg:block'" class="mt-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-blue-50 text-[#1E40AF] border border-blue-200/70 flex items-center justify-center text-sm font-bold shrink-0">
                             {{ strtoupper(substr($ticket->requester->name, 0, 1)) }}
                         </div>
                         <div class="min-w-0">
-                            <div class="text-sm font-semibold text-slate-900 truncate">{{ $ticket->requester->name }}</div>
-                            <div class="text-xs text-slate-500 truncate">{{ $ticket->requester->department?->name ?? 'Belum ditentukan' }}</div>
+                            <div class="text-sm font-semibold text-slate-900">{{ $ticket->requester->name }}</div>
+                            <div class="text-xs text-slate-500">{{ $ticket->requester->departmentRecord?->name ?? $ticket->requester->department ?? 'Belum ditentukan' }}</div>
                         </div>
                     </div>
-                    <div class="flex items-center justify-between text-xs">
-                        <span class="text-slate-400">Email</span>
-                        <span class="tabular-nums text-slate-700 font-medium truncate max-w-[200px]">{{ $ticket->requester->email }}</span>
+                    <div class="mt-3 border-t border-slate-100 pt-3 text-xs">
+                        <span class="block text-slate-500">Email kantor</span>
+                        <span class="mt-0.5 block break-all font-medium text-slate-700">{{ $ticket->requester->email }}</span>
                     </div>
                 </div>
-            </div>
+            </section>
 
             <!-- Card: Petugas Terkait -->
             @php
@@ -1470,13 +1407,13 @@
                 ];
             @endphp
 
-            <div class="bg-white rounded-xl border border-slate-200 p-4 lg:p-5 shadow-xs">
+            <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
                 <button
                     type="button"
                     @click="openPetugas = !openPetugas"
                     class="w-full flex items-center justify-between lg:cursor-default lg:pointer-events-none"
                 >
-                    <h3 class="text-xs font-bold text-slate-600 lg:text-slate-500 uppercase tracking-wider">Petugas Terkait</h3>
+                    <h3 class="text-sm font-bold text-slate-900">Petugas terkait</h3>
                     <div class="flex items-center gap-2 lg:hidden">
                         <span class="text-xs text-slate-500">{{ count($officers) }} pihak</span>
                         <svg class="w-4 h-4 text-slate-400 transition-transform" :class="openPetugas ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1485,15 +1422,15 @@
                     </div>
                 </button>
 
-                <div :class="openPetugas ? 'block' : 'hidden lg:block'" class="mt-3 pt-3 border-t border-slate-100 divide-y divide-slate-100">
+                <div :class="openPetugas ? 'block' : 'hidden lg:block'" class="mt-2 divide-y divide-slate-100">
                     @foreach($officers as $item)
                         @php
                             $st = $item['state'];
                             $statusTextClass = match($st) {
-                                'done' => 'text-emerald-600 font-medium',
-                                'active', 'revision' => 'text-amber-600 font-medium',
-                                'rejected' => 'text-rose-600 font-medium',
-                                default => 'text-slate-400',
+                                'done' => 'bg-emerald-50 text-emerald-700',
+                                'active', 'revision' => 'bg-amber-50 text-amber-700',
+                                'rejected' => 'bg-rose-50 text-rose-700',
+                                default => 'bg-slate-50 text-slate-500',
                             };
                             $dotClass = match($st) {
                                 'done' => 'bg-emerald-500',
@@ -1502,10 +1439,10 @@
                                 default => null,
                             };
                         @endphp
-                        <div class="py-2.5 first:pt-0 last:pb-0 flex items-center justify-between gap-3">
+                        <div class="py-2.5 last:pb-0 flex items-center justify-between gap-3">
                             <div class="min-w-0">
-                                <div class="text-[11px] text-slate-400">{{ $item['role'] }}</div>
-                                <div class="text-xs font-semibold text-slate-900 truncate mt-0.5">
+                                <div class="text-xs text-slate-500">{{ $item['role'] }}</div>
+                                <div class="text-sm font-semibold text-slate-900 leading-snug mt-0.5">
                                     @if($item['is_unassigned'])
                                         <span class="text-slate-400 italic font-normal">{{ $item['officer'] }}</span>
                                     @else
@@ -1514,7 +1451,7 @@
                                 </div>
                             </div>
 
-                            <span class="inline-flex items-center gap-1.5 text-xs shrink-0 {{ $statusTextClass }}">
+                            <span class="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[11px] font-semibold shrink-0 {{ $statusTextClass }}">
                                 @if($dotClass)
                                     <span class="w-1.5 h-1.5 rounded-full {{ $dotClass }}"></span>
                                     <span>{{ $item['label'] }}</span>
@@ -1525,7 +1462,7 @@
                         </div>
                     @endforeach
                 </div>
-            </div>
+            </section>
 
             <!-- Card: Linimasa Waktu (Ringkas - Hanya Tahapan yang Sudah Tercatat) -->
             @php
@@ -1544,15 +1481,17 @@
                 ])->filter(fn ($ms) => ! is_null($ms['time']))->values();
             @endphp
 
-            <div class="bg-white rounded-xl border border-slate-200 p-4 lg:p-5 shadow-xs">
+            <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
                 <div class="flex items-center justify-between">
                     <button
                         type="button"
                         @click="openLinimasa = !openLinimasa"
-                        class="flex-1 flex items-center justify-between lg:cursor-default lg:pointer-events-none text-left"
+                        :aria-expanded="openLinimasa.toString()"
+                        aria-controls="ticket-milestones"
+                        class="flex-1 flex items-center justify-between text-left focus:outline-none focus:ring-2 focus:ring-[#1E40AF]/30 rounded-lg"
                     >
-                        <h3 class="text-xs font-bold text-slate-600 lg:text-slate-500 uppercase tracking-wider">Linimasa Waktu</h3>
-                        <svg class="w-4 h-4 text-slate-400 transition-transform lg:hidden mr-2" :class="openLinimasa ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <h3 class="text-sm font-bold text-slate-900">Linimasa waktu</h3>
+                        <svg class="w-4 h-4 text-slate-400 transition-transform mr-2" :class="openLinimasa ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                         </svg>
                     </button>
@@ -1565,9 +1504,8 @@
                     </button>
                 </div>
 
-                <div :class="openLinimasa ? 'block' : 'hidden lg:block'" class="mt-3 pt-3 border-t border-slate-100 divide-y divide-slate-100 text-xs">
-                    <div class="py-2 first:pt-0 flex items-center justify-between gap-2">
-                        <span class="text-slate-500 font-medium">Target Timeline (Kabag IT)</span>
+                <div class="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-sm">
+                    <span class="text-slate-500 font-medium">Target penyelesaian</span>
                         @if($ticket->target_completion_at)
                             <div class="flex items-center gap-1.5">
                                 <span class="font-semibold {{ $ticket->isOverdue() ? 'text-rose-600' : 'text-slate-900' }} tabular-nums">
@@ -1584,16 +1522,17 @@
                         @else
                             <span class="text-slate-400 italic">Belum ditetapkan</span>
                         @endif
-                    </div>
+                </div>
+                <div id="ticket-milestones" x-show="openLinimasa" x-collapse style="display: none;" class="mt-3 divide-y divide-slate-100 border-t border-slate-100 pt-2 text-sm">
                     @foreach($milestones as $ms)
-                        <div class="py-2 first:pt-0 last:pb-0 flex items-center justify-between gap-2">
+                        <div class="py-2 first:pt-0 last:pb-0 flex flex-wrap items-center justify-between gap-2">
                             <span class="text-slate-500">{{ $ms['label'] }}</span>
                             <span class="font-medium text-slate-800 tabular-nums">{{ $ms['time']->format('d/m/Y H:i') }}</span>
                         </div>
                     @endforeach
                 </div>
-            </div>
+            </section>
 
-        </div>
+        </aside>
     </div>
 </x-app-layout>

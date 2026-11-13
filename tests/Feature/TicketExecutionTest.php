@@ -108,6 +108,35 @@ class TicketExecutionTest extends TestCase
         ]);
     }
 
+    public function test_assigned_developer_can_release_ticket_to_pool_and_keep_reason(): void
+    {
+        $ticket = Ticket::create([
+            'ticket_number' => 'TICK-20261028-0044',
+            'requester_id' => $this->requester->id,
+            'supervisor_id' => $this->supervisor->id,
+            'category' => 'Software',
+            'classification' => Ticket::CLASSIFICATION_MINOR,
+            'title' => 'Perbaikan Aplikasi Internal',
+            'description' => 'Aplikasi internal perlu perbaikan akses dan tampilan.',
+            'status' => Ticket::STATUS_IN_PROGRESS,
+            'assigned_to' => $this->developer->id,
+        ]);
+
+        $reason = 'Perlu dialihkan kepada teknisi lain.';
+        $this->actingAs($this->developer)
+            ->post(route('tickets.release-to-pool', $ticket), ['reason' => $reason])
+            ->assertRedirect(route('tickets.show', $ticket));
+
+        $this->assertSame(Ticket::STATUS_READY_FOR_WORK, $ticket->fresh()->status);
+        $this->assertNull($ticket->fresh()->assigned_to);
+        $this->assertDatabaseHas('ticket_activity_logs', [
+            'ticket_id' => $ticket->id,
+            'user_id' => $this->developer->id,
+            'activity_type' => 'release_to_pool',
+            'content' => "Tiket dikembalikan ke Pool Antrean oleh {$this->developer->name}. Alasan: {$reason}",
+        ]);
+    }
+
     public function test_other_developer_cannot_log_activity_or_complete_work(): void
     {
         $ticket = Ticket::create([

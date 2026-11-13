@@ -31,9 +31,11 @@
 </IfModule>
 
 <IfModule mod_headers.c>
+    Header always set Content-Security-Policy "frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"
     Header always set X-Frame-Options "SAMEORIGIN"
     Header always set X-Content-Type-Options "nosniff"
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always unset X-Powered-By
 </IfModule>
 
 # Fallback protection if mod_rewrite is disabled

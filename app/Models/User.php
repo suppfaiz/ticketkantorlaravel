@@ -64,9 +64,9 @@ class User extends Authenticatable
         ];
     }
 
-    public function department(): BelongsTo
+    public function departmentRecord(): BelongsTo
     {
-        return $this->belongsTo(Department::class);
+        return $this->belongsTo(Department::class, 'department_id');
     }
 
     public function supervisor(): BelongsTo

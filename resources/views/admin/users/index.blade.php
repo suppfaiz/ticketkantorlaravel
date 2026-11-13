@@ -192,7 +192,7 @@
                         </div>
                         <div class="flex items-center justify-between gap-2 mt-1">
                             <span class="text-xs text-slate-500 truncate">
-                                {{ $u->email }} &bull; {{ $u->department?->name ?? 'Tanpa Divisi' }}
+                                {{ $u->email }} &bull; {{ $u->departmentRecord?->name ?? $u->department ?? 'Tanpa Divisi' }}
                             </span>
                             <svg class="w-4 h-4 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
@@ -237,7 +237,7 @@
                                     </span>
                                 </td>
                                 <td class="px-6 py-3.5 whitespace-nowrap text-slate-700">
-                                    {{ $u->department?->name ?? '-' }}
+                                    {{ $u->departmentRecord?->name ?? $u->department ?? '-' }}
                                 </td>
                                 <td class="px-6 py-3.5 whitespace-nowrap text-slate-600">
                                     {{ $u->supervisor?->name ?? '-' }}

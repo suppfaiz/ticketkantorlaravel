@@ -6,7 +6,7 @@ Dokumen ini menjelaskan deployment awal NALA IT Helpdesk pada cPanel menggunakan
 
 Konfirmasikan hal berikut kepada administrator cPanel:
 
-- PHP minimal 8.2.
+- PHP 8.2 atau lebih baru yang didukung Laravel 12, untuk web dan CLI.
 - Extension PHP: BCMath, Ctype, cURL, DOM, Fileinfo, JSON, Mbstring, OpenSSL, PDO, PDO MySQL, Tokenizer, dan XML.
 - Terminal/SSH dan Composer 2.
 - MySQL atau MariaDB.
@@ -53,6 +53,7 @@ cd /home/ACCOUNT/apps
 git clone https://github.com/suppfaiz/ticketkantorlaravel.git
 cd ticketkantorlaravel
 composer install --no-dev --prefer-dist --optimize-autoloader
+composer check-platform-reqs --no-dev
 cp .env.cpanel.example .env
 ```
 
@@ -75,6 +76,10 @@ APP_ENV=production
 APP_KEY=
 APP_DEBUG=false
 APP_URL=https://helpdesk.domainkantor.com
+LOG_CHANNEL=daily
+LOG_LEVEL=warning
+LOG_DAILY_DAYS=14
+TRUSTED_PROXIES=
 APP_TIMEZONE=Asia/Jakarta
 APP_LOCALE=id
 FORCE_HTTPS=true
@@ -99,6 +104,8 @@ CACHE_STORE=database
 QUEUE_CONNECTION=database
 FILESYSTEM_DISK=local
 ```
+
+Biarkan `TRUSTED_PROXIES` kosong jika aplikasi diakses langsung dari web server cPanel. Jika ada reverse proxy, isi hanya alamat IP proxy tersebut (pisahkan dengan koma bila lebih dari satu); jangan isi `*`. Pastikan `APP_URL` memakai domain resmi aplikasi.
 
 Gunakan nama database dan username lengkap dari cPanel; keduanya biasanya memiliki prefix nama akun. Host dapat berupa `localhost` atau nilai khusus dari penyedia hosting.
 
@@ -141,12 +148,13 @@ php artisan key:generate --force
 php artisan optimize:clear
 php artisan migrate --force
 php artisan db:seed --class=ProductionSeeder --force
-php artisan storage:link
 php artisan config:cache
 php artisan view:cache
 ```
 
 Migration membuat tabel secara otomatis. Jangan menjalankan `php artisan migrate:fresh` pada production karena perintah tersebut menghapus seluruh tabel dan data.
+
+Lampiran tiket disimpan pada disk privat dan diunduh melalui controller yang memeriksa hak akses. Alur awal tidak memakai disk `public`, sehingga `storage:link` tidak diperlukan.
 
 `route:cache` belum digunakan karena route aplikasi masih memiliki Closure. Pindahkan Closure ke controller sebelum mengaktifkannya.
 
@@ -174,16 +182,16 @@ Email notifikasi dijalankan melalui database queue. Jika cPanel tidak menyediaka
 Queue worker setiap menit:
 
 ```cron
-* * * * * /usr/local/bin/php /home/ACCOUNT/apps/ticketkantorlaravel/artisan queue:work --stop-when-empty --tries=3 --timeout=60 >> /dev/null 2>&1
+* * * * * /usr/local/bin/php /home/ACCOUNT/apps/ticketkantorlaravel/artisan queue:work --stop-when-empty --tries=3 --timeout=60 --quiet >> /home/ACCOUNT/apps/ticketkantorlaravel/storage/logs/queue-cron.log 2>&1
 ```
 
 Scheduler Laravel:
 
 ```cron
-* * * * * /usr/local/bin/php /home/ACCOUNT/apps/ticketkantorlaravel/artisan schedule:run >> /dev/null 2>&1
+* * * * * /usr/local/bin/php /home/ACCOUNT/apps/ticketkantorlaravel/artisan schedule:run --quiet >> /home/ACCOUNT/apps/ticketkantorlaravel/storage/logs/scheduler-cron.log 2>&1
 ```
 
-Sesuaikan lokasi binary PHP dan aplikasi. Jika cPanel menyediakan Process Manager/Supervisor, jalankan `queue:work` sebagai proses permanen dan restart worker setiap kali melakukan deployment.
+Sesuaikan lokasi binary PHP dan aplikasi. Pastikan Cron Jobs menggunakan PHP yang sama dengan website. Pantau `storage/logs`, atur rotasi untuk log cron, dan periksa `php artisan queue:failed`. Jika cPanel menyediakan Process Manager/Supervisor, jalankan `queue:work` sebagai proses permanen dan restart worker setiap kali melakukan deployment.
 
 ## 11. Realtime chat
 
@@ -212,6 +220,10 @@ Requester tanpa supervisor tidak akan dipasangkan secara otomatis dan tidak dapa
 ## 13. Checklist staging dan UAT
 
 - [ ] `/up` dan halaman login dapat diakses melalui HTTPS.
+- [ ] Versi PHP web dan CLI sesuai, serta `composer check-platform-reqs --no-dev` lulus.
+- [ ] Respons `/login` memiliki `Content-Security-Policy`, `X-Frame-Options: SAMEORIGIN`, dan `X-Content-Type-Options: nosniff`.
+- [ ] Aset `/build/assets/*.css` memiliki `X-Content-Type-Options: nosniff`; pastikan aturan `public/.htaccess` diproses oleh Apache/LiteSpeed (`mod_headers`).
+- [ ] Respons tidak mengungkap `X-Powered-By`; jika header masih muncul, nonaktifkan `expose_php` pada konfigurasi PHP hosting.
 - [ ] Fresh migration berhasil pada database kosong.
 - [ ] `APP_ENV=production` dan `APP_DEBUG=false`.
 - [ ] Source serta `.env` tidak dapat diakses dari web.
@@ -226,15 +238,19 @@ Requester tanpa supervisor tidak akan dipasangkan secara otomatis dan tidak dapa
 - [ ] Diskusi tiket, chat, audit trail, dan export CSV berhasil.
 - [ ] SMTP dan email melalui queue berhasil.
 - [ ] Cron queue dan scheduler berjalan tanpa failed job.
+- [ ] `composer audit --no-dev` tidak melaporkan advisory pada dependency production.
 - [ ] Backup database dan attachment berhasil direstore.
 - [ ] Log aplikasi tidak dapat diakses dari web.
 - [ ] Prosedur rollback tersedia.
+
+Header keamanan pada halaman dinamis juga dipasang oleh middleware Laravel. Kebijakan CSP awal membatasi embedding halaman, objek, base URL, dan tujuan formulir; kebijakan ini belum membatasi skrip inline karena interaksi Alpine dan editor masih memerlukannya. Aset statis saat `php artisan serve` tidak melewati `.htaccess`, jadi verifikasi header aset dilakukan pada staging cPanel.
 
 Jalankan automated test dan build sebelum release:
 
 ```bash
 php artisan test
 npm run build
+composer audit --no-dev
 ```
 
 ## 14. Deployment update berikutnya
@@ -252,6 +268,8 @@ php artisan queue:restart
 ```
 
 Jangan menjalankan seeder pada setiap deployment kecuali memang ada perubahan master data yang harus diterapkan.
+
+Jika update gagal setelah migration atau perubahan data, hentikan cron queue/scheduler sementara, pulihkan **source release sebelumnya bersama backup database dan `storage/app/private` dari waktu yang sama**, lalu jalankan `php artisan optimize:clear`, `php artisan config:cache`, `php artisan view:cache`, dan `php artisan queue:restart`. Uji login dan satu tiket sebelum mengaktifkan cron kembali. Mengembalikan source saja tidak cukup bila struktur database sudah berubah.
 
 Alur release yang disarankan:
 

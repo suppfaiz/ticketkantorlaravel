@@ -28,7 +28,7 @@ class AdminUserController extends Controller
 
     public function index(Request $request): View
     {
-        $query = User::with(['department', 'supervisor'])->orderBy('name');
+        $query = User::with(['departmentRecord', 'supervisor'])->orderBy('name');
 
         if ($request->filled('search')) {
             $search = trim((string) $request->query('search'));

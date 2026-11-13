@@ -151,6 +151,29 @@ class DashboardAndAuditTest extends TestCase
         $response->assertSee('Ambil Tiket');
     }
 
+    public function test_it_developer_dashboard_shows_active_work_as_dismissible_notification(): void
+    {
+        $ticket = Ticket::create([
+            'ticket_number' => 'TICK-20261028-0067',
+            'requester_id' => $this->requester->id,
+            'supervisor_id' => $this->supervisor->id,
+            'category' => 'Software',
+            'title' => 'Perbaikan Aplikasi Internal',
+            'description' => 'Tiket sedang dikerjakan teknisi.',
+            'status' => Ticket::STATUS_IN_PROGRESS,
+            'assigned_to' => $this->developer->id,
+        ]);
+
+        $this->actingAs($this->developer)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Pekerjaan Anda menunggu')
+            ->assertSee('Tutup notifikasi pekerjaan')
+            ->assertSee(route('tickets.show', $ticket))
+            ->assertSee(route('tickets.index', ['developer_queue' => 'active']))
+            ->assertDontSee('Lanjutkan Kerja');
+    }
+
     public function test_audit_logs_are_immutable(): void
     {
         $ticket = Ticket::create([

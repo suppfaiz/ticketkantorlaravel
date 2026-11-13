@@ -77,7 +77,7 @@
                         <td class="py-2 px-3 bg-slate-50 font-semibold text-slate-600 border-r border-slate-200">Nama Pemohon</td>
                         <td class="py-2 px-3 text-slate-800 border-r border-slate-200 w-1/4">{{ $ticket->requester->name }}</td>
                         <td class="py-2 px-3 bg-slate-50 font-semibold text-slate-600 border-r border-slate-200 w-1/4">Divisi / Unit Kerja</td>
-                        <td class="py-2 px-3 text-slate-800">{{ $ticket->requester->department?->name ?? '-' }}</td>
+                        <td class="py-2 px-3 text-slate-800">{{ $ticket->requester->departmentRecord?->name ?? $ticket->requester->department ?? '-' }}</td>
                     </tr>
                     <tr class="border-b border-slate-200">
                         <td class="py-2 px-3 bg-slate-50 font-semibold text-slate-600 border-r border-slate-200">Kategori Request</td>
@@ -117,7 +117,7 @@
                     <div><span class="font-semibold text-slate-600">Tanggal Rapat:</span> {{ $ticket->meetingMinutes->meeting_date ? \Carbon\Carbon::parse($ticket->meetingMinutes->meeting_date)->format('d/m/Y H:i') : '-' }}</div>
                     <div><span class="font-semibold text-slate-600">Peserta Rapat:</span> {{ $ticket->meetingMinutes->attendees ?? $ticket->meetingMinutes->attendees_summary ?? '-' }}</div>
                     <div><span class="font-semibold text-slate-600">Hasil &amp; Kesepakatan:</span></div>
-                    <div class="prose prose-xs max-w-none text-slate-800 pt-1 border-t border-slate-100">{!! $ticket->meetingMinutes->notes ?? e($ticket->meetingMinutes->deliverables ?? '-') !!}</div>
+                    <div class="prose prose-xs max-w-none text-slate-800 pt-1 border-t border-slate-100">{!! \App\Support\SafeMinutesHtml::render($ticket->meetingMinutes->notes ?? $ticket->meetingMinutes->deliverables ?? '-') !!}</div>
                 </div>
             </div>
         @endif

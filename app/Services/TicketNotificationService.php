@@ -10,6 +10,7 @@ use App\Notifications\TicketEventNotification;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 class TicketNotificationService
 {
@@ -20,15 +21,21 @@ class TicketNotificationService
         $ticket->loadMissing(['requester', 'supervisor', 'assignedTo']);
         $recipients = $this->recipientsForStatus($ticket, $status);
 
-        $this->notifyUsers(
-            ticket: $ticket,
-            recipients: $recipients,
-            event: 'status_changed',
-            title: 'Status tiket diperbarui',
-            message: $remarks ?: "Status tiket berubah menjadi {$status}.",
-            actor: $actor,
-            sendEmail: true,
-        );
+        foreach ($recipients->unique('id') as $recipient) {
+            $nextStep = $this->nextStepFor($ticket, $status, $recipient);
+            $summary = ($actor?->name ?? 'Sistem').' memperbarui tiket menjadi '.$status.'.';
+            $note = filled($remarks) ? ' Catatan: '.Str::limit(trim($remarks), 180).'.' : '';
+
+            $this->notifyUsers(
+                ticket: $ticket,
+                recipients: [$recipient],
+                event: 'status_changed',
+                title: $this->titleForStatus($status),
+                message: $summary.$note.' '.$nextStep,
+                actor: $actor,
+                sendEmail: true,
+            );
+        }
     }
 
     public function notifyUsers(
@@ -103,5 +110,50 @@ class TicketNotificationService
         $users = User::where('role', $role)->where('is_active', true)->get();
 
         return $this->delegations->effectiveApprovers($users, $scope);
+    }
+
+    private function titleForStatus(string $status): string
+    {
+        return match ($status) {
+            Ticket::STATUS_WAITING_SUPERVISOR => 'Persetujuan atasan diperlukan',
+            Ticket::STATUS_WAITING_IT_HEAD => 'Tiket menunggu keputusan Kabag IT',
+            Ticket::STATUS_WAITING_LOA_KADIV_IT => 'LOA Kadiv IT perlu ditinjau',
+            Ticket::STATUS_WAITING_LOA_DIREKSI => 'LOA Direksi perlu ditinjau',
+            Ticket::STATUS_WAITING_MAJOR_MEETING => 'Rapat major perlu dijadwalkan',
+            Ticket::STATUS_WAITING_MINUTES, Ticket::STATUS_WAITING_USER_MINUTES, Ticket::STATUS_REVISION_MINUTES => 'Notulensi perlu dilengkapi',
+            Ticket::STATUS_WAITING_MINUTES_APPROVAL => 'Notulensi menunggu persetujuan',
+            Ticket::STATUS_READY_FOR_WORK => 'Tiket tersedia di pool IT',
+            Ticket::STATUS_IN_PROGRESS => 'Pengerjaan tiket dimulai',
+            Ticket::STATUS_REVISION_WORK => 'Hasil pekerjaan perlu direvisi',
+            Ticket::STATUS_WAITING_USER_REVIEW => 'Hasil pekerjaan siap diperiksa',
+            Ticket::STATUS_COMPLETED => 'Tiket selesai',
+            Ticket::STATUS_REVISION_REQUESTER, Ticket::STATUS_REVISION_BY_IT_HEAD => 'Pengajuan perlu diperbaiki',
+            Ticket::STATUS_REJECTED_SUPERVISOR, Ticket::STATUS_REJECTED_IT_HEAD,
+            Ticket::STATUS_REJECTED_KADIV_IT, Ticket::STATUS_REJECTED_DIREKSI => 'Tiket ditolak',
+            default => 'Status tiket diperbarui',
+        };
+    }
+
+    private function nextStepFor(Ticket $ticket, string $status, User $recipient): string
+    {
+        return match ($status) {
+            Ticket::STATUS_WAITING_SUPERVISOR => 'Tinjau pengajuan dan berikan keputusan.',
+            Ticket::STATUS_WAITING_IT_HEAD => 'Tinjau klasifikasi dan berikan keputusan.',
+            Ticket::STATUS_WAITING_LOA_KADIV_IT, Ticket::STATUS_WAITING_LOA_DIREKSI => 'Tinjau LOA dan berikan keputusan.',
+            Ticket::STATUS_WAITING_MAJOR_MEETING => 'Atur jadwal rapat major.',
+            Ticket::STATUS_WAITING_MINUTES, Ticket::STATUS_WAITING_USER_MINUTES, Ticket::STATUS_REVISION_MINUTES => 'Lengkapi notulensi pada halaman tiket.',
+            Ticket::STATUS_WAITING_MINUTES_APPROVAL => 'Periksa notulensi dan berikan keputusan.',
+            Ticket::STATUS_READY_FOR_WORK => 'Ambil tiket dari pool jika Anda siap menanganinya.',
+            Ticket::STATUS_IN_PROGRESS => $ticket->assigned_to === $recipient->id
+                ? 'Lanjutkan pengerjaan dan catat progresnya.'
+                : 'Pantau progres pengerjaan pada halaman tiket.',
+            Ticket::STATUS_REVISION_WORK => 'Periksa masukan pemohon dan kerjakan revisinya.',
+            Ticket::STATUS_WAITING_USER_REVIEW => 'Periksa hasil kerja, lalu terima atau minta revisi.',
+            Ticket::STATUS_REVISION_REQUESTER, Ticket::STATUS_REVISION_BY_IT_HEAD => 'Perbaiki pengajuan sesuai catatan peninjau.',
+            Ticket::STATUS_COMPLETED => 'Tiket telah ditutup. Tidak ada tindakan lanjutan.',
+            Ticket::STATUS_REJECTED_SUPERVISOR, Ticket::STATUS_REJECTED_IT_HEAD,
+            Ticket::STATUS_REJECTED_KADIV_IT, Ticket::STATUS_REJECTED_DIREKSI => 'Buka tiket untuk melihat alasan penolakan.',
+            default => 'Buka tiket untuk melihat rinciannya.',
+        };
     }
 }

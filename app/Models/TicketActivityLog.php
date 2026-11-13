@@ -17,8 +17,6 @@ class TicketActivityLog extends Model
         'user_id',
         'activity_type',
         'content',
-        'activity_note',
-        'attachment_path',
         'created_at',
     ];
 

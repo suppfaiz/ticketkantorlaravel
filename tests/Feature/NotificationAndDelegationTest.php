@@ -59,6 +59,71 @@ class NotificationAndDelegationTest extends TestCase
         $this->assertSame(1, $this->supervisor->unreadNotifications()->count());
         $this->assertSame(0, $this->otherSupervisor->unreadNotifications()->count());
         $this->assertSame($ticket->id, $this->supervisor->unreadNotifications()->first()->data['ticket_id']);
+        $notification = $this->supervisor->unreadNotifications()->firstOrFail();
+        $this->assertSame('Persetujuan atasan diperlukan', $notification->data['title']);
+        $this->assertStringContainsString('Tinjau pengajuan dan berikan keputusan', $notification->data['message']);
+        $this->assertStringContainsString($this->requester->name, $notification->data['message']);
+    }
+
+    public function test_supervisor_dashboard_shows_only_own_actionable_ticket(): void
+    {
+        $ticket = $this->submitTicket();
+
+        $this->actingAs($this->supervisor)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Perlu tindakan Anda')
+            ->assertSee('Buka tiket berikutnya')
+            ->assertSee($ticket->ticket_number);
+
+        $this->actingAs($this->otherSupervisor)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('Perlu tindakan Anda')
+            ->assertDontSee($ticket->ticket_number);
+    }
+
+    public function test_developer_dashboard_shows_pool_without_duplicate_action_panel_or_empty_work_card(): void
+    {
+        $developer = User::factory()->create(['role' => User::ROLE_IT_DEVELOPER, 'is_active' => true]);
+        $ticket = Ticket::create([
+            'ticket_number' => 'TICK-20261112-0001',
+            'requester_id' => $this->requester->id,
+            'supervisor_id' => $this->supervisor->id,
+            'category' => 'Software',
+            'title' => 'Tiket siap dikerjakan',
+            'description' => 'Tiket tersedia di pool teknisi.',
+            'classification' => Ticket::CLASSIFICATION_MINOR,
+            'status' => Ticket::STATUS_READY_FOR_WORK,
+        ]);
+
+        $this->actingAs($developer)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Pool Tiket Siap Dikerjakan')
+            ->assertSee($ticket->ticket_number)
+            ->assertSee('Ambil Tiket')
+            ->assertDontSee('Perlu tindakan Anda')
+            ->assertDontSee('Tiket Sedang Saya Tangani');
+    }
+
+    public function test_unread_filter_excludes_read_notifications(): void
+    {
+        $this->submitTicket();
+        $notification = $this->supervisor->unreadNotifications()->firstOrFail();
+
+        $this->actingAs($this->supervisor)
+            ->get(route('notifications.index', ['filter' => 'unread']))
+            ->assertOk()
+            ->assertSee('Persetujuan atasan diperlukan');
+
+        $this->actingAs($this->supervisor)->post(route('notifications.read', $notification));
+
+        $this->actingAs($this->supervisor)
+            ->get(route('notifications.index', ['filter' => 'unread']))
+            ->assertOk()
+            ->assertSee('Semua notifikasi sudah dibaca')
+            ->assertSee('0 notifikasi belum dibaca');
     }
 
     public function test_notification_can_be_marked_as_read_when_opened(): void
@@ -70,6 +135,32 @@ class NotificationAndDelegationTest extends TestCase
 
         $response->assertRedirect();
         $this->assertNotNull($notification->fresh()->read_at);
+    }
+
+    public function test_bell_count_decreases_after_opening_one_notification(): void
+    {
+        $this->submitTicket();
+        $this->submitTicket();
+        $notification = $this->supervisor->unreadNotifications()->oldest()->firstOrFail();
+
+        $this->actingAs($this->supervisor)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('2 notifikasi belum dibaca')
+            ->assertSee('2 belum dibaca');
+
+        $this->actingAs($this->supervisor)
+            ->post(route('notifications.read', $notification))
+            ->assertRedirect();
+
+        $this->actingAs($this->supervisor)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('1 notifikasi belum dibaca')
+            ->assertSee('1 belum dibaca')
+            ->assertDontSee('2 notifikasi belum dibaca');
+
+        $this->assertSame(1, $this->supervisor->unreadNotifications()->count());
     }
 
     public function test_user_cannot_open_another_users_notification(): void
@@ -102,6 +193,12 @@ class NotificationAndDelegationTest extends TestCase
 
         $this->assertSame(0, $this->supervisor->unreadNotifications()->count());
         $this->assertSame(1, $this->delegate->unreadNotifications()->count());
+
+        $this->actingAs($this->delegate)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Perlu tindakan Anda')
+            ->assertSee(route('tickets.show', $ticket));
 
         $response = $this->actingAs($this->delegate)->post(route('tickets.supervisor-approve', $ticket), [
             'notes' => 'Disetujui atas delegasi atasan.',
@@ -192,6 +289,14 @@ class NotificationAndDelegationTest extends TestCase
         $this->assertSame(Ticket::STATUS_IN_PROGRESS, $ticket->fresh()->status);
         $this->assertSame(1, $developer->unreadNotifications()->count());
         $this->assertSame(1, $this->requester->unreadNotifications()->count());
+        $this->assertStringContainsString(
+            'Lanjutkan pengerjaan',
+            $developer->unreadNotifications()->firstOrFail()->data['message'],
+        );
+        $this->assertStringContainsString(
+            'Pantau progres',
+            $this->requester->unreadNotifications()->firstOrFail()->data['message'],
+        );
     }
 
     public function test_progress_note_notifies_requester(): void

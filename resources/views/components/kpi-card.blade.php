@@ -60,13 +60,13 @@ $progressVal = $progress ?? (is_numeric($value) && $value > 0 ? min(100, max(28,
 
 <{{ $tag }}
     @if($href) href="{{ $href }}" @endif
-    class="group relative max-sm:bg-none max-sm:bg-white max-sm:border max-sm:border-slate-200/80 max-sm:shadow-2xs bg-gradient-to-r {{ $scheme['bg'] }} rounded-2xl p-3.5 sm:p-5 text-slate-900 sm:text-white sm:shadow-md sm:hover:shadow-xl sm:hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200 overflow-hidden flex flex-col justify-between {{ $href ? 'cursor-pointer' : '' }}"
+    class="group relative min-h-24 sm:min-h-28 max-sm:bg-none max-sm:bg-white max-sm:border max-sm:border-slate-200/80 max-sm:shadow-2xs bg-gradient-to-r {{ $scheme['bg'] }} rounded-2xl p-3.5 sm:p-5 text-slate-900 sm:text-white sm:shadow-md sm:hover:shadow-xl transition-all duration-200 overflow-hidden flex flex-col justify-between {{ $href ? 'cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#1E40AF] focus:ring-offset-2' : '' }}"
 >
     <!-- Background subtle shine accent (Desktop Only) -->
     <div class="hidden sm:block absolute -right-5 -bottom-5 w-24 h-24 rounded-full bg-white/15 pointer-events-none blur-xs group-hover:scale-125 transition-transform duration-300"></div>
 
     <div class="relative z-10">
-        <div class="text-[10px] sm:text-xs font-semibold sm:font-bold text-slate-500 sm:text-white/90 uppercase tracking-wider truncate mb-1 sm:mb-1.5">
+        <div class="text-xs sm:text-sm font-semibold sm:font-bold text-slate-600 sm:text-white/90 uppercase tracking-wide leading-snug mb-1.5">
             {{ $title }}
         </div>
         <div class="flex items-end justify-between gap-2">

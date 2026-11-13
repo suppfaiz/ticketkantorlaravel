@@ -36,7 +36,7 @@ class TicketController extends Controller
     {
         $user = $request->user();
 
-        $query = Ticket::with(['requester.department', 'supervisor', 'assignedTo'])
+        $query = Ticket::with(['requester.departmentRecord', 'supervisor', 'assignedTo'])
             ->latest('created_at')
             ->orderByDesc('id');
 
@@ -116,6 +116,15 @@ class TicketController extends Controller
             }
         }
 
+        if ($user->isItDeveloper()) {
+            match ($this->developerQueue($request)) {
+                'unassigned' => $query->where('status', Ticket::STATUS_READY_FOR_WORK)->whereNull('assigned_to'),
+                'active' => $query->where('assigned_to', $user->id)->whereIn('status', [Ticket::STATUS_IN_PROGRESS, Ticket::STATUS_REVISION_WORK]),
+                'completed' => $query->where('assigned_to', $user->id)->whereIn('status', [Ticket::STATUS_WAITING_USER_REVIEW, Ticket::STATUS_COMPLETED]),
+                default => null,
+            };
+        }
+
         if ($request->filled('category')) {
             $query->where('category', $request->query('category'));
         }
@@ -157,6 +166,15 @@ class TicketController extends Controller
         return $query;
     }
 
+    private function developerQueue(Request $request): ?string
+    {
+        $queue = $request->query('developer_queue');
+
+        return $request->user()->isItDeveloper() && in_array($queue, ['unassigned', 'active', 'completed'], true)
+            ? $queue
+            : null;
+    }
+
     public function index(Request $request): View
     {
         $this->authorize('viewAny', Ticket::class);
@@ -169,8 +187,9 @@ class TicketController extends Controller
 
         $tickets = $query->paginate($perPage)->withQueryString();
         $categories = TicketCategory::activeNames();
+        $developerQueue = $this->developerQueue($request);
 
-        return view('tickets.index', compact('tickets', 'perPage', 'categories'));
+        return view('tickets.index', compact('tickets', 'perPage', 'categories', 'developerQueue'));
     }
 
     public function calendar(Request $request): View
@@ -188,7 +207,7 @@ class TicketController extends Controller
         $endOfMonth = $currentMonth->copy()->endOfMonth();
 
         $user = $request->user();
-        $baseQuery = Ticket::with(['requester.department', 'supervisor', 'assignedTo', 'meetingMinutes'])
+        $baseQuery = Ticket::with(['requester.departmentRecord', 'supervisor', 'assignedTo', 'meetingMinutes'])
             ->where('status', '!=', Ticket::STATUS_CANCELLED);
 
         if ($user->isRequester()) {
@@ -389,7 +408,7 @@ class TicketController extends Controller
                     }
                 }
 
-                fputcsv($out, [
+                fputcsv($out, array_map(self::safeCsvCell(...), [
                     $t->ticket_number,
                     $t->created_at?->format('Y-m-d H:i:s'),
                     $t->title,
@@ -398,7 +417,7 @@ class TicketController extends Controller
                     $t->priority ?? '-',
                     $t->status,
                     $t->requester?->name ?? '-',
-                    $t->requester?->department?->name ?? ($t->requester?->department ?? '-'),
+                    $t->requester?->departmentRecord?->name ?? ($t->requester?->department ?? '-'),
                     $t->supervisor?->name ?? '-',
                     $t->assignedTo?->name ?? 'Belum ditugaskan',
                     $t->target_completion_at?->format('Y-m-d') ?? '-',
@@ -408,13 +427,20 @@ class TicketController extends Controller
                     $t->closed_at?->format('Y-m-d H:i:s') ?? '-',
                     $workHours,
                     $totalSlaHours,
-                ]);
+                ]));
             }
 
             fclose($out);
         }, $filename, [
             'Content-Type' => 'text/csv; charset=UTF-8',
         ]);
+    }
+
+    private static function safeCsvCell(mixed $value): string
+    {
+        $text = (string) $value;
+
+        return preg_match('/\A[\x00-\x20]*[=+\-@]/', $text) ? "'".$text : $text;
     }
 
     public function create(): View
@@ -455,7 +481,7 @@ class TicketController extends Controller
         $this->authorize('view', $ticket);
 
         $ticket->load([
-            'requester.department',
+            'requester.departmentRecord',
             'supervisor',
             'assignedTo',
             'attachments.uploader',
@@ -530,9 +556,9 @@ class TicketController extends Controller
         $this->authorize('view', $ticket);
 
         $ticket->load([
-            'requester.department',
-            'supervisor.department',
-            'assignedTo.department',
+            'requester.departmentRecord',
+            'supervisor.departmentRecord',
+            'assignedTo.departmentRecord',
             'attachments.uploader',
             'meetingMinutes.author',
             'meetingMinutes.approver',
@@ -741,7 +767,6 @@ class TicketController extends Controller
             'user_id' => $request->user()->id,
             'activity_type' => 'work_completion',
             'content' => $completionNotes,
-            'activity_note' => $completionNotes,
             'created_at' => now(),
         ]);
 
