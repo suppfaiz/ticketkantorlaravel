@@ -106,7 +106,8 @@ class AdminUserController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
-            'password' => ['nullable', 'string', 'min:6', 'max:100'],
+            'reset_password' => ['sometimes', 'boolean'],
+            'password' => ['nullable', 'required_if:reset_password,1', 'string', 'min:6', 'max:100'],
             'role' => ['required', Rule::in(array_keys(self::ALLOWED_ROLES))],
             'department_id' => ['nullable', 'integer', 'exists:departments,id'],
             'supervisor_id' => [
@@ -149,7 +150,7 @@ class AdminUserController extends Controller
             'is_active' => $request->boolean('is_active', false),
         ];
 
-        if (! empty($validated['password'])) {
+        if ($request->boolean('reset_password') && ! empty($validated['password'])) {
             $payload['password'] = Hash::make($validated['password']);
         }
 

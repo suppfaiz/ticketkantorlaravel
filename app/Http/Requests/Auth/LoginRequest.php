@@ -87,7 +87,7 @@ class LoginRequest extends FormRequest
 
             if ($user->is_active === false) {
                 throw ValidationException::withMessages([
-                    'email' => 'Akun Anda sedang dinonaktifkan oleh Administrator Sistem.',
+                    'account_inactive' => 'Akun Anda telah dinonaktifkan. Hubungi administrator untuk mengaktifkannya kembali.',
                 ]);
             }
 

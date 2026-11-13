@@ -60,6 +60,7 @@
                 department_id: '',
                 supervisor_id: '',
                 is_active: true,
+                reset_password: false,
                 updateUrl: ''
             },
             openEditUser(user, url) {
@@ -71,6 +72,7 @@
                     department_id: user.department_id || '',
                     supervisor_id: user.supervisor_id || '',
                     is_active: !!user.is_active,
+                    reset_password: false,
                     updateUrl: url
                 };
                 $dispatch('open-modal', 'modal-edit-user');
@@ -376,8 +378,13 @@
                             <input type="email" name="email" x-model="editingUser.email" required class="w-full text-xs rounded-lg border-slate-300 focus:border-[#1E40AF] focus:ring-[#1E40AF]">
                         </div>
                         <div>
-                            <label class="block font-semibold text-slate-700 mb-1">Reset Kata Sandi (Opsional)</label>
-                            <input type="password" name="password" minlength="6" placeholder="Kosongkan jika tidak diubah" class="w-full text-xs rounded-lg border-slate-300 focus:border-[#1E40AF] focus:ring-[#1E40AF]">
+                            <label class="inline-flex items-center gap-2 font-semibold text-slate-700 cursor-pointer">
+                                <input type="checkbox" name="reset_password" value="1" x-model="editingUser.reset_password" class="rounded border-slate-300 text-[#1E40AF] focus:ring-[#1E40AF]">
+                                Atur ulang kata sandi
+                            </label>
+                            <template x-if="editingUser.reset_password">
+                                <input type="password" name="password" minlength="6" maxlength="100" required autocomplete="new-password" placeholder="Kata sandi baru (minimal 6 karakter)" aria-label="Kata sandi baru" class="mt-2 w-full text-xs rounded-lg border-slate-300 focus:border-[#1E40AF] focus:ring-[#1E40AF]">
+                            </template>
                         </div>
                     </div>
 

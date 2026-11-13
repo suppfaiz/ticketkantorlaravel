@@ -3,6 +3,7 @@
 namespace Tests\Feature\Auth;
 
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -28,6 +29,28 @@ class AuthenticationTest extends TestCase
 
         $this->assertAuthenticated();
         $response->assertRedirect(route('dashboard', absolute: false));
+    }
+
+    public function test_successful_login_shows_greeting_once(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-13 08:00:00', 'Asia/Jakarta'));
+        $user = User::factory()->create();
+
+        $this->post('/login', [
+            'email' => $user->email,
+            'password' => 'password',
+        ])->assertRedirect(route('dashboard', absolute: false));
+
+        $this->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('role="dialog"', false)
+            ->assertSee('Selamat pagi, Rekan!')
+            ->assertSee('Semoga aktivitas hari ini berjalan lancar dan menyenangkan.')
+            ->assertSee('Lanjutkan');
+
+        $this->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('Selamat pagi, Rekan!');
     }
 
     public function test_users_can_not_authenticate_with_invalid_password(): void

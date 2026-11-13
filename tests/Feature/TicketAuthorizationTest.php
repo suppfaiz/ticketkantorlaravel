@@ -98,9 +98,16 @@ class TicketAuthorizationTest extends TestCase
             'created_at' => now(),
         ]);
 
+        $this->get(route('tickets.attachments.download', [$ticketA, $attachment]))
+            ->assertRedirect(route('login'));
+
         // Requester B tries to download the attachment
         $response = $this->actingAs($this->requesterB)->get(route('tickets.attachments.download', [$ticketA, $attachment]));
         $response->assertForbidden();
+
+        $this->actingAs($this->requesterA)
+            ->get(route('tickets.attachments.download', [$ticketA, $attachment]))
+            ->assertOk();
     }
 
     public function test_user_cannot_edit_another_users_ticket(): void

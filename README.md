@@ -190,7 +190,7 @@ Pekerjaan operasional sebelum go-live:
 4. Menguji backup serta restore database dan attachment.
 5. Menjalankan smoke test dan monitoring setelah deployment.
 
-Lihat [Panduan Deployment cPanel](docs/DEPLOYMENT_CPANEL.md) untuk checklist yang lebih rinci.
+Lihat [Panduan Deployment cPanel](docs/DEPLOYMENT_CPANEL.md) untuk checklist dan langkah migration tanpa Terminal/SSH melalui UI Cron Jobs.
 
 ## Struktur direktori penting
 
@@ -222,5 +222,5 @@ docs/                      Dokumentasi operasional dan integrasi
 - Gunakan `APP_DEBUG=false` di production.
 - Gunakan HTTPS dan secure session cookie.
 - Ganti credential admin awal sebelum seeding production.
-- Simpan source Laravel di luar public document root bila cPanel memungkinkan.
+- Simpan source Laravel dan `storage/app/private` di luar public document root; hanya file dari `public/` yang boleh disajikan melalui web.
 - Laporkan vulnerability secara privat kepada pengelola sistem; jangan menuliskan credential atau data pengguna pada GitHub issue.

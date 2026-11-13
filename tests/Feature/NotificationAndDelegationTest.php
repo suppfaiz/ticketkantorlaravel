@@ -73,7 +73,8 @@ class NotificationAndDelegationTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Perlu tindakan Anda')
-            ->assertSee('Buka tiket berikutnya')
+            ->assertSee('Buka tiket')
+            ->assertSee($ticket->title)
             ->assertSee($ticket->ticket_number);
 
         $this->actingAs($this->otherSupervisor)

@@ -21,6 +21,44 @@
                 <!-- Unified Topbar (Includes Page Header Title on Left & Notifications/User on Right) -->
                 @include('layouts.topbar', ['header' => $header ?? null])
 
+                @if (session('login_greeting'))
+                    @php
+                        $loginHour = now('Asia/Jakarta')->hour;
+                        $loginSalutation = match (true) {
+                            $loginHour >= 5 && $loginHour < 11 => 'pagi',
+                            $loginHour >= 11 && $loginHour < 15 => 'siang',
+                            $loginHour >= 15 && $loginHour < 18 => 'sore',
+                            default => 'malam',
+                        };
+                    @endphp
+                    <div
+                        x-data="{ show: true, timer: null, close() { this.show = false; clearTimeout(this.timer); document.activeElement?.blur() } }"
+                        x-init="$nextTick(() => $refs.closeButton.focus()); timer = setTimeout(() => close(), 5000)"
+                        x-show="show"
+                        x-transition.opacity.duration.200ms
+                        @keydown.escape.window="if (show) close()"
+                        @click.self="close()"
+                        class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/55 px-4 py-6 backdrop-blur-[2px]"
+                        style="display: none;"
+                    >
+                        <div role="dialog" aria-modal="true" aria-labelledby="login-greeting-title" aria-describedby="login-greeting-message" class="relative w-full max-w-lg rounded-2xl bg-white px-6 py-8 text-center shadow-2xl sm:px-10 sm:py-10">
+                            <button type="button" x-ref="closeButton" @click="close()" class="absolute right-4 top-4 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#1E40AF]" aria-label="Tutup sapaan">
+                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                            <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-[#1E40AF]">
+                                <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" d="M12 3v2m0 14v2M3 12h2m14 0h2M5.64 5.64l1.42 1.42m9.88 9.88 1.42 1.42M18.36 5.64l-1.42 1.42M7.06 16.94l-1.42 1.42M12 8a4 4 0 100 8 4 4 0 000-8z" />
+                                </svg>
+                            </div>
+                            <h2 id="login-greeting-title" class="mt-5 text-xl font-bold text-slate-900 sm:text-2xl">Selamat {{ $loginSalutation }}, Rekan!</h2>
+                            <p id="login-greeting-message" class="mt-3 text-sm leading-relaxed text-slate-600 sm:text-base">Semoga aktivitas hari ini berjalan lancar dan menyenangkan.</p>
+                            <button type="button" @click="close()" class="mt-7 inline-flex items-center justify-center rounded-xl bg-[#1E40AF] px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1D4ED8] focus:outline-none focus:ring-2 focus:ring-[#1E40AF] focus:ring-offset-2">Lanjutkan</button>
+                        </div>
+                    </div>
+                @endif
+
                 <!-- Flash Alerts (FR-007) -->
                 @if (session('success') || session('error') || $errors->any())
                     <div class="w-full px-4 sm:px-6 lg:px-8 pt-4">

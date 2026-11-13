@@ -8,7 +8,7 @@ Konfirmasikan hal berikut kepada administrator cPanel:
 
 - PHP 8.2 atau lebih baru yang didukung Laravel 12, untuk web dan CLI.
 - Extension PHP: BCMath, Ctype, cURL, DOM, Fileinfo, JSON, Mbstring, OpenSSL, PDO, PDO MySQL, Tokenizer, dan XML.
-- Terminal/SSH dan Composer 2.
+- Terminal/SSH dan Composer 2, atau kemampuan mengunggah release yang sudah memuat `vendor/` dan menjalankan perintah Artisan melalui menu Cron Jobs.
 - MySQL atau MariaDB.
 - Kemampuan mengatur document root subdomain.
 - Cron Jobs setiap menit atau process manager untuk queue worker.
@@ -18,19 +18,25 @@ Konfirmasikan hal berikut kepada administrator cPanel:
 
 ## 2. Struktur direktori dan document root
 
-Simpan source Laravel di luar `public_html` jika memungkinkan:
+Simpan seluruh source Laravel, termasuk `.env`, `vendor`, dan `storage`, di luar `public_html`:
 
 ```text
 /home/ACCOUNT/apps/ticketkantorlaravel/  source Laravel
 ```
 
-Arahkan document root subdomain langsung ke:
+Arahkan document root subdomain langsung ke folder `public` aplikasi jika pengaturan cPanel mengizinkannya:
 
 ```text
 /home/ACCOUNT/apps/ticketkantorlaravel/public
 ```
 
-Jangan mengarahkan document root ke root repository. File `.env`, `vendor`, `storage`, `database`, `routes`, dan source aplikasi tidak boleh dapat diakses melalui web.
+Sebagian penyedia cPanel membatasi document root agar tetap berada di bawah `public_html`. Jika demikian, gunakan document root khusus subdomain, misalnya `/home/ACCOUNT/public_html/helpdesk`, lalu **salin hanya isi folder `public/`** ke sana. Pada salinan `index.php` di document root tersebut, arahkan `$basePath` ke lokasi source yang berada di luar `public_html`:
+
+```php
+$basePath = '/home/ACCOUNT/apps/ticketkantorlaravel';
+```
+
+Pastikan file `public/build` ikut disalin dan PHP dapat membaca source aplikasi. Ulangi penyalinan aset dan `index.php` yang sudah disesuaikan pada setiap release. Jangan menaruh seluruh repository di `public_html`, mengarahkan document root ke root repository, atau membuat symlink dari web root ke `storage/app/private`. File `.env`, `vendor`, `storage`, `database`, `routes`, dan source aplikasi tidak boleh dapat diakses langsung melalui web.
 
 ## 3. Membuat database MySQL
 
@@ -154,7 +160,35 @@ php artisan view:cache
 
 Migration membuat tabel secara otomatis. Jangan menjalankan `php artisan migrate:fresh` pada production karena perintah tersebut menghapus seluruh tabel dan data.
 
-Lampiran tiket disimpan pada disk privat dan diunduh melalui controller yang memeriksa hak akses. Alur awal tidak memakai disk `public`, sehingga `storage:link` tidak diperlukan.
+### Jika hanya memiliki akses UI cPanel
+
+Anda **tidak perlu membuat tabel satu per satu** di phpMyAdmin. Sebelum menjalankan migration:
+
+1. Siapkan release di komputer lokal dengan `vendor/` yang dibangun untuk versi PHP server dan `public/build`; unggah melalui File Manager.
+2. Buat database kosong beserta user-nya melalui **MySQL Databases**, lalu isi kredensial database pada `.env` melalui File Manager.
+3. Untuk instalasi pertama, buat `APP_KEY` unik pada komputer lokal dengan `php artisan key:generate --show`, lalu salin hasilnya ke `APP_KEY` pada `.env` cPanel. Jangan memakai key dari development atau membuat key baru saat aplikasi production sudah memiliki data terenkripsi.
+
+Setelah file aplikasi dan `.env` siap, gunakan **Advanced → Cron Jobs** untuk menjalankan perintah Artisan berikut **satu per satu sesuai urutan**. Pilih waktu beberapa menit ke depan sesuai waktu server pada cPanel, isi kolom **Command** dengan path PHP CLI dan path aplikasi yang sesuai, lalu hapus cron tersebut segera setelah hasilnya diperiksa. Cron Jobs tidak menyediakan tombol "jalankan sekali", sehingga penghapusan job setelah eksekusi adalah bagian dari prosedur.
+
+| Urutan | Perintah Artisan | Periksa setelah berjalan |
+| --- | --- | --- |
+| 1 | `optimize:clear` | Log tidak berisi error. |
+| 2 | `migrate --force` | Tabel `migrations` dan tabel aplikasi muncul di phpMyAdmin. |
+| 3 | `db:seed --class=ProductionSeeder --force` | Akun admin awal dan master data muncul; `INITIAL_ADMIN_EMAIL` dan `INITIAL_ADMIN_PASSWORD` sudah diisi lebih dahulu. |
+| 4 | `config:cache` | Log tidak berisi error dan aplikasi tetap membaca konfigurasi production. |
+| 5 | `view:cache` | Log tidak berisi error dan halaman aplikasi terbuka normal. |
+
+Contoh isi kolom **Command** untuk langkah migration (ganti `ACCOUNT` dan `/PATH/KE/PHP` sesuai akun hosting):
+
+```text
+/PATH/KE/PHP /home/ACCOUNT/apps/ticketkantorlaravel/artisan migrate --force > /home/ACCOUNT/apps/ticketkantorlaravel/storage/logs/migrate-once.log 2>&1
+```
+
+Untuk langkah lain, ganti bagian `migrate --force` dan gunakan nama log berbeda, misalnya `seed-once.log`. Lihat log melalui **File Manager** sebelum melanjutkan ke langkah berikutnya. Gunakan binary PHP CLI dengan versi yang sama seperti website; minta path-nya kepada penyedia hosting jika belum diketahui. Setelah login admin pertama berhasil, hapus `INITIAL_ADMIN_PASSWORD` dari `.env` sesuai bagian konfigurasi di atas. Pada pembaruan aplikasi berikutnya, jangan ulangi pembuatan `APP_KEY` atau seeding admin awal; setelah backup data, jalankan lagi langkah 1, 2, 4, dan 5.
+
+Jika menu Cron Jobs dinonaktifkan, minta administrator hosting menjalankan perintah Artisan tersebut. Impor SQL via phpMyAdmin hanya menjadi opsi terakhir jika release SQL dibuat khusus dari versi aplikasi dan mencakup riwayat tabel `migrations`; jangan menyusun tabel manual karena mudah berbeda dari migration berikutnya.
+
+Lampiran tiket disimpan di `storage/app/private/tickets` dan notulensi di `storage/app/private/meeting_minutes`. Keduanya diunduh melalui controller yang memeriksa hak akses. Alur awal tidak memakai disk `public`, sehingga `storage:link` tidak diperlukan.
 
 `route:cache` belum digunakan karena route aplikasi masih memiliki Closure. Pindahkan Closure ke controller sebelum mengaktifkannya.
 
@@ -227,6 +261,9 @@ Requester tanpa supervisor tidak akan dipasangkan secara otomatis dan tidak dapa
 - [ ] Fresh migration berhasil pada database kosong.
 - [ ] `APP_ENV=production` dan `APP_DEBUG=false`.
 - [ ] Source serta `.env` tidak dapat diakses dari web.
+- [ ] Document root hanya berisi file `public/`; source dan `storage/app/private` berada di luar web root.
+- [ ] Coba akses `/.env`, `/storage/app/private/...`, dan lokasi source melalui URL: tidak boleh mengembalikan isi file. Uji dengan path lampiran nyata dari staging, bukan hanya path yang tidak ada.
+- [ ] Unduhan lampiran tanpa login atau dengan akun yang tidak berhak ditolak; akun yang berhak tetap dapat mengunduhnya.
 - [ ] Login/logout lokal berhasil.
 - [ ] Seluruh role dan hubungan requester–supervisor sudah benar.
 - [ ] Lonceng mencatat notifikasi baru dan dapat menandainya sebagai dibaca.

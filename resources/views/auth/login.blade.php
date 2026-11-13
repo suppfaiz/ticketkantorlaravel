@@ -80,4 +80,42 @@
             Masuk
         </button>
     </form>
+
+    @if ($errors->has('account_inactive'))
+        <div
+            x-data="{ open: true }"
+            x-init="$nextTick(() => $refs.closeButton.focus())"
+            x-show="open"
+            @keydown.escape.window="open = false; $nextTick(() => document.getElementById('email')?.focus())"
+            class="fixed inset-0 z-50 flex items-center justify-center px-4 py-6"
+        >
+            <div class="absolute inset-0 bg-slate-950/55" aria-hidden="true"></div>
+
+            <div
+                role="alertdialog"
+                aria-modal="true"
+                aria-labelledby="inactive-account-title"
+                aria-describedby="inactive-account-description"
+                class="relative w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl sm:p-7"
+            >
+                <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v4m0 4h.01M10.3 3.9 2.7 17.1A2 2 0 004.4 20h15.2a2 2 0 001.7-2.9L13.7 3.9a2 2 0 00-3.4 0z" />
+                    </svg>
+                </div>
+                <h2 id="inactive-account-title" class="text-lg font-bold text-slate-900">Akun dinonaktifkan</h2>
+                <p id="inactive-account-description" class="mt-2 text-sm leading-relaxed text-slate-600">
+                    {{ $errors->first('account_inactive') }}
+                </p>
+                <button
+                    type="button"
+                    x-ref="closeButton"
+                    @click="open = false; $nextTick(() => document.getElementById('email')?.focus())"
+                    class="mt-6 w-full rounded-xl bg-[#1E40AF] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1E3A8A] focus:outline-none focus:ring-2 focus:ring-[#1E40AF] focus:ring-offset-2"
+                >
+                    Mengerti
+                </button>
+            </div>
+        </div>
+    @endif
 </x-guest-layout>

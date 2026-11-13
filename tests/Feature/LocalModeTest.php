@@ -58,6 +58,10 @@ class LocalModeTest extends TestCase
         ])->assertSessionHasErrors('email');
         $this->assertGuest();
 
+        $this->get('/login')
+            ->assertOk()
+            ->assertDontSee('role="alertdialog"', false);
+
         $inactive = User::factory()->create([
             'email' => 'inactive@kantor.internal',
             'password' => Hash::make('correct-password'),
@@ -67,8 +71,65 @@ class LocalModeTest extends TestCase
         $this->post('/login', [
             'email' => $inactive->email,
             'password' => 'correct-password',
-        ])->assertSessionHasErrors('email');
+        ])->assertSessionHasErrors('account_inactive');
         $this->assertGuest();
+
+        $this->get('/login')
+            ->assertOk()
+            ->assertSee('role="alertdialog"', false)
+            ->assertSee('Akun dinonaktifkan')
+            ->assertSee('Hubungi administrator');
+    }
+
+    public function test_admin_can_deactivate_user_without_changing_password(): void
+    {
+        config(['services.sso.driver' => 'local']);
+        $this->app->forgetInstance(SsoServiceInterface::class);
+
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $user = User::factory()->create([
+            'role' => User::ROLE_REQUESTER,
+            'password' => Hash::make('original-password'),
+            'is_active' => true,
+        ]);
+        $originalHash = $user->password;
+
+        $this->actingAs($admin)->patch(route('admin.users.update', $user), [
+            'name' => $user->name,
+            'email' => $user->email,
+            'role' => $user->role,
+            'password' => 'browser-autofilled-password',
+        ])->assertRedirect(route('admin.users.index'));
+
+        $this->assertFalse($user->fresh()->is_active);
+        $this->assertSame($originalHash, $user->fresh()->password);
+
+        $this->post('/logout')->assertRedirect('/');
+        $this->post('/login', [
+            'email' => $user->email,
+            'password' => 'original-password',
+        ])->assertSessionHasErrors('account_inactive');
+        $this->assertGuest();
+    }
+
+    public function test_admin_can_explicitly_reset_user_password(): void
+    {
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $user = User::factory()->create([
+            'role' => User::ROLE_REQUESTER,
+            'password' => Hash::make('original-password'),
+        ]);
+
+        $this->actingAs($admin)->patch(route('admin.users.update', $user), [
+            'name' => $user->name,
+            'email' => $user->email,
+            'role' => $user->role,
+            'is_active' => '1',
+            'reset_password' => '1',
+            'password' => 'new-password',
+        ])->assertRedirect(route('admin.users.index'));
+
+        $this->assertTrue(Hash::check('new-password', $user->fresh()->password));
     }
 
     public function test_local_loa_records_pending_local_approval_without_http_request(): void
