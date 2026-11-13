@@ -209,6 +209,7 @@ docs/                      Dokumentasi operasional dan integrasi
 
 ## Dokumen terkait
 
+- [Bahan presentasi untuk pimpinan](presentation.md)
 - [Panduan deployment cPanel](docs/DEPLOYMENT_CPANEL.md)
 - [Rancangan integrasi SSO dan LOA](docs/INTEGRATION.md)
 - [Kontrak API untuk tim aplikasi eksternal](docs/KONTRAK_API_EKSTERNAL.md)
